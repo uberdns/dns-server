@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/miekg/dns"
@@ -19,8 +21,8 @@ type Record struct {
 	ID   int
 	Name string
 	IP   string
-	TTL  int //TTL for caching
-	DOB  int //epoch time record created, used for cache expiry
+	TTL  int64     //TTL for caching
+	DOB  time.Time //time record created, used for cache expiry
 }
 
 var records = []Record{}
@@ -76,6 +78,11 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	domain := msg.Question[0].Name
 	msg.Authoritative = true
 
+	// To-Do:
+	// - On successful lookup, add to records list (done)
+	// - Check known records list before performing mysql query (done)
+	// - If record in known record list, check for cache expired (done)
+
 	match, err := regexp.MatchString(".*google.com.", domain)
 	if err != nil {
 		log.Println(err)
@@ -88,16 +95,32 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		})
 		//w.WriteMsg(&msg)
 	} else {
-		//deviceSerial := strings.Split(domain, ".")[0]
-		//fmt.Println(domain)
-		//device, err := getRecordFromHost(strings.Split(domain, ".")[0])
-		//fmt.Println(device)
-		device, err := getRecordFromHost(strings.Split(domain, ".")[0])
-		//deviceIP, err := getDeviceFromDatabase(deviceSerial)
-		if err != nil {
-			log.Println(err)
+		var device Record
+		for i := range records {
+			if records[i].Name == strings.Split(domain, ".")[0] {
+				device = records[i]
+				fmt.Println("Record found in cache")
+			}
 		}
-		//deviceIP := "4.2.2.1"
+
+		if (Record{}) == device {
+			device, err = getRecordFromHost(strings.Split(domain, ".")[0])
+			if err != nil {
+				panic(err.Error())
+			}
+			// Ensure non-empty device
+			if (Record{}) != device {
+				fmt.Println("Non-cached record, adding to cache")
+				device.DOB = time.Now()
+				records = append(records, device)
+			}
+
+		}
+
+		fmt.Println("TTL: ", device.TTL)
+		fmt.Println("DOB: ", device.DOB)
+		fmt.Println("Time in cache: ", (time.Since(device.DOB)))
+
 		switch r.Question[0].Qtype {
 		case dns.TypeA:
 			msg.Answer = append(msg.Answer, &dns.A{
@@ -109,12 +132,32 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(&msg)
 }
 
+func cleanCache() error {
+	for i := range records {
+		if (time.Now().Unix() - records[i].DOB.Unix()) > records[i].TTL {
+			log.Println("Cleaning up cached record ", records[i])
+			// Delete record from struct
+			records = append(records[:i], records[i+1:]...)
+		}
+	}
+	return nil
+}
+
 func main() {
 	go func() {
 		err := dbConnect()
 
 		if err != nil {
 			log.Fatal(err)
+		}
+	}()
+
+	// Clean up records that exceed their TTL
+	go func() {
+		for {
+			if err := cleanCache(); err != nil {
+				log.Fatalf("Unable to clean up cache %s\n", err.Error())
+			}
 		}
 	}()
 
