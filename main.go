@@ -148,7 +148,7 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 
 type handler struct{}
 
-func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := dns.Msg{}
 	msg.SetReply(r)
 	domain := msg.Question[0].Name
