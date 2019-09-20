@@ -11,25 +11,25 @@ stages:
 
 unit_tests:
   stage: test
-  image: golang:1.9
+  image: golang:1.13
   script:
     - make test
 
 race_detector:
   stage: test
-  image: golang:1.9
+  image: golang:1.13
   script:
     - make race
 
 #code_coverage:
 #  stage: test
-#  image: golang:1.9
+#  image: golang:1.13
 #  script:
 #    - make coverage
 
 #code_coverage_report:
 #  stage: test
-#  image: golang:1.9
+#  image: golang:1.13
 #  script:
 #    - make coverhtml
 #  only:
@@ -37,6 +37,6 @@ race_detector:
 
 lint_code:
   stage: test
-  image: golang:1.9
+  image: golang:1.13
   script:
     - make lint
