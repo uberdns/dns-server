@@ -13,19 +13,19 @@ unit_tests:
   stage: test
   image: golang:1.9
   script:
-    - go test -short .
+    - make test
 
 race_detector:
   stage: test
   image: golang:1.9
   script:
-    - go test -race -short .
+    - make race
 
 memory_sanitizer:
   stage: test
   image: golang:1.9
   script:
-    - go test -msan -short .
+    - make msan
 
 #code_coverage:
 #  stage: test
@@ -46,5 +46,3 @@ lint_code:
   image: golang:1.9
   script:
     - make lint
-    - go get -u golang.org/x/lint/golint
-    - golint -set_exit_status .
