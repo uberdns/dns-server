@@ -24,10 +24,13 @@ import (
 	"gopkg.in/ini.v1"
 )
 
+// Domain - struct for storing information regarding domains
 type Domain struct {
 	ID   int64
 	Name string
 }
+
+// Record -- struct for storing information regarding records
 type Record struct {
 	ID       int
 	Name     string
@@ -115,13 +118,13 @@ func getDomain(domainName string) (Domain, error) {
 	return domain, nil
 }
 
-func getRecordFromHost(host string, domain_id int64) (Record, error) {
+func getRecordFromHost(host string, domainID int64) (Record, error) {
 	var record Record
 
 	query := "SELECT id, name, ip_address, ttl, domain_id FROM dns_record WHERE name = ? AND domain_id = ?"
 	fmt.Println(query)
 	fmt.Println("name: ", host)
-	fmt.Println("DID: ", domain_id)
+	fmt.Println("DID: ", domainID)
 	dq, err := dbConn.Prepare(query)
 
 	if err != nil {
@@ -130,7 +133,7 @@ func getRecordFromHost(host string, domain_id int64) (Record, error) {
 
 	defer dq.Close()
 
-	err = dq.QueryRow(host, domain_id).Scan(&record.ID, &record.Name, &record.IP, &record.TTL, &record.DomainID)
+	err = dq.QueryRow(host, domainID).Scan(&record.ID, &record.Name, &record.IP, &record.TTL, &record.DomainID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			fmt.Println("Lookup failed but domain was valid.")
@@ -151,7 +154,7 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	domain := msg.Question[0].Name
 	msg.Authoritative = true
 
-	top_level := strings.TrimRight(strings.Join(strings.Split(domain, ".")[1:], "."), ".")
+	topLevelDomain := strings.TrimRight(strings.Join(strings.Split(domain, ".")[1:], "."), ".")
 
 	//fetch_domain, err := getDomain(top_level)
 	//if err != nil {
@@ -162,10 +165,10 @@ func (this *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	for _, d := range domains {
 		// Create regex string to match against per-domain
 		regexString := fmt.Sprintf(".*%s.*", d.Name)
-		match, _ := regexp.MatchString(regexString, top_level)
+		match, _ := regexp.MatchString(regexString, topLevelDomain)
 		//fmt.Println(top_level)
 		if match {
-			fmt.Println(top_level)
+			fmt.Println(topLevelDomain)
 			realDomain = d
 		}
 	}
