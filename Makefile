@@ -10,7 +10,7 @@ all: build
 lint: dep ## Lint the files
 	`go list -f {{.Target}} golang.org/x/lint/golint` -set_exit_status
 
-test: ## Run unittests
+test: dep ## Run unittests
 	@go test -short 
 
 race: dep ## Run data race detector
