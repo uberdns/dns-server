@@ -1,0 +1,50 @@
+cache:
+  paths:
+    - /go/src/github.com
+    - /go/src/golang.org
+    - /go/src/google.golang.org
+    - /go/src/gopkg.in
+
+stages:
+  - test
+  - build
+
+unit_tests:
+  stage: test
+  image: golang:1.9
+  script:
+    - go test -short .
+
+race_detector:
+  stage: test
+  image: golang:1.9
+  script:
+    - go test -race -short .
+
+memory_sanitizer:
+  stage: test
+  image: golang:1.9
+  script:
+    - go test -msan -short .
+
+#code_coverage:
+#  stage: test
+#  image: golang:1.9
+#  script:
+#    - make coverage
+
+#code_coverage_report:
+#  stage: test
+#  image: golang:1.9
+#  script:
+#    - make coverhtml
+#  only:
+#  - master
+
+lint_code:
+  stage: test
+  image: golang:1.9
+  script:
+    - make lint
+    - go get -u golang.org/x/lint/golint
+    - golint -set_exit_status .
