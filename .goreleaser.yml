@@ -31,6 +31,7 @@ nfpms:
       386: 32-bit
       darwin: macOS
       linux: Tux
+    license: GNU v2
     vendor: Conrey Enterprises
     homepage: http://lsof.top
     maintainer: Alex Conrey <alex@conrey.us>
