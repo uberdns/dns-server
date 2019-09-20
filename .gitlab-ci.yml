@@ -26,7 +26,7 @@ memory_sanitizer:
   image: golang:1.13
   script:
     - echo "deb http://apt.llvm.org/buster llvm-toolchain-buster main" | tee -a /etc/apt/sources.list
-    - apt update; apt-get install -y --no-install-recommends clang-6.0
+    - apt-get --allow-unauthenticated update; apt-get install -y --no-install-recommends clang-6.0
     - CC=clang-6.0 make msan
 
 
