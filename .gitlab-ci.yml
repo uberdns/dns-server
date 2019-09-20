@@ -45,5 +45,5 @@ build:
   stage: build
   image: golang:1.13
   script:
-    - dpkg -i https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb
+    - wget https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb && dpkg -i *.deb
     - make build
