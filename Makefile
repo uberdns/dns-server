@@ -10,14 +10,14 @@ all: build
 lint: dep ## Lint the files
 	`go list -f {{.Target}} golang.org/x/lint/golint` -set_exit_status
 
-test: dep ## Run unittests
+test: ## Run unittests
 	@go test -short 
 
 race: dep ## Run data race detector
-	@go test -race -short 
+	@go test -race -short
 
 msan: dep ## Run memory sanitizer
-	@go test -msan -short 
+	@go test -msan -short
 
 coverage: ## Generate global code coverage report
 	./tools/coverage.sh;
