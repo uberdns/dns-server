@@ -11,13 +11,13 @@ lint: ## Lint the files
 	`go list -f {{.Target}} golang.org/x/lint/golint` -set_exit_status
 
 test: ## Run unittests
-	@go test -short ${PKG_LIST}
+	@go test -short 
 
 race: dep ## Run data race detector
-	@go test -race -short ${PKG_LIST}
+	@go test -race -short 
 
 msan: dep ## Run memory sanitizer
-	@go test -msan -short ${PKG_LIST}
+	@go test -msan -short 
 
 coverage: ## Generate global code coverage report
 	./tools/coverage.sh;
