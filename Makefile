@@ -28,7 +28,6 @@ coverhtml: ## Generate global code coverage report in HTML
 dep: ## Get the dependencies
 	@go get -v -d ./...
 	@go get -u golang.org/x/lint/golint
-	@go get -u github.com/goreleaser/goreleaser
 
 build: dep ## Build the binary file
 	goreleaser --snapshot --skip-publish --rm-dist
