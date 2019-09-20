@@ -43,6 +43,6 @@ lint_code:
 
 build:
   stage: build
-  image: goreleaser/goreleaser:latest
+  image: golang:1.13
   script:
     - make build

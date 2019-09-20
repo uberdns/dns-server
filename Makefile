@@ -16,6 +16,9 @@ test: dep ## Run unittests
 race: dep ## Run data race detector
 	@go test -race -short
 
+msan: dep
+	@go test -msan -short
+
 coverage: ## Generate global code coverage report
 	./tools/coverage.sh;
 
@@ -25,9 +28,10 @@ coverhtml: ## Generate global code coverage report in HTML
 dep: ## Get the dependencies
 	@go get -v -d ./...
 	@go get -u golang.org/x/lint/golint
+	@go get -u github.com/goreleaser/goreleaser
 
 build: dep ## Build the binary file
-	@go build -i -v $(PKG)
+	goreleaser --snapshot --skip-publish --rm-dist
 
 clean: ## Remove previous build
 	@rm -f $(PROJECT_NAME)
