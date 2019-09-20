@@ -40,3 +40,9 @@ lint_code:
   image: golang:1.13
   script:
     - make lint
+
+build:
+  stage: build
+  image: goreleaser/goreleaser:latest
+  script:
+    - make build
