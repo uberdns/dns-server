@@ -57,3 +57,6 @@ build:
   script:
     - wget https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb && dpkg -i *.deb
     - make build
+  artifacts:
+    paths:
+      - dist/*
