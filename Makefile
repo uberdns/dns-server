@@ -16,9 +16,6 @@ test: ## Run unittests
 race: dep ## Run data race detector
 	@go test -race -short
 
-msan: dep ## Run memory sanitizer
-	@go test -msan -short
-
 coverage: ## Generate global code coverage report
 	./tools/coverage.sh;
 

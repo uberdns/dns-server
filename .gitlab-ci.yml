@@ -21,12 +21,6 @@ race_detector:
   script:
     - make race
 
-memory_sanitizer:
-  stage: test
-  image: golang:1.9
-  script:
-    - make msan
-
 #code_coverage:
 #  stage: test
 #  image: golang:1.9
