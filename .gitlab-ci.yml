@@ -21,13 +21,13 @@ race_detector:
   script:
     - make race
 
-memory_sanitizer:
-  stage: test
-  image: golang:1.13
-  script:
-    - echo "deb http://apt.llvm.org/buster llvm-toolchain-buster main" | tee -a /etc/apt/sources.list
-    - apt-get --allow-unauthenticated update; apt-get install -y --no-install-recommends clang-6.0
-    - CC=clang-6.0 make msan
+#memory_sanitizer:
+#  stage: test
+#  image: golang:1.13
+#  script:
+#    - echo "deb http://apt.llvm.org/buster llvm-toolchain-buster main" | tee -a /etc/apt/sources.list
+#    - apt-get --allow-unauthenticated update; apt-get install -y --no-install-recommends clang-6.0
+#    - CC=clang-6.0 make msan
 
 
 #code_coverage:
