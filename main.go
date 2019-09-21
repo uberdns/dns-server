@@ -5,6 +5,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -19,6 +20,7 @@ import (
 
 	"net/http/pprof"
 
+	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/miekg/dns"
 	"gopkg.in/ini.v1"
@@ -43,6 +45,8 @@ type Record struct {
 var domains = []Domain{}
 var records = []Record{}
 
+var redisClient *redis.Client
+var redisCacheChannelName string
 var dbConn sql.DB
 
 func dbConnect(username string, password string, host string, port int, database string) error {
@@ -221,6 +225,20 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(&msg)
 }
 
+func removeRecordFromCache(record Record) error {
+	for i := range records {
+		if records[i].ID == record.ID {
+			records = append(records[:i], records[i+1:]...)
+			//records[i] = records[len(records)-1] // Copy last element to index i
+			//records[len(records)-1] = Record{}   // Erase last element (write zero value)
+			//records = records[:len(records)-1]   // Truncate slice
+		}
+	}
+	return nil
+}
+
+// Run through record objects currently cached and evaluate
+// whether we need to expire them (remove)
 func cleanCache() error {
 	for i := range records {
 		if (time.Now().Unix() - records[i].DOB.Unix()) > records[i].TTL {
@@ -230,6 +248,20 @@ func cleanCache() error {
 		}
 	}
 	return nil
+}
+
+// Watch for redis messages in the cache purge channel
+// when one comes in, remove the record from the cache
+func watchCachePurge(rdc *redis.PubSub) {
+	defer rdc.Close()
+	fmt.Println("watching for redis changes")
+	ch := rdc.Channel()
+
+	for msg := range ch {
+		var cachedRecord Record
+		json.Unmarshal([]byte(msg.Payload), &cachedRecord)
+		removeRecordFromCache(cachedRecord)
+	}
 }
 
 func main() {
@@ -244,10 +276,39 @@ func main() {
 	dbPort, _ := cfg.Section("database").Key("port").Int()
 	dbName := cfg.Section("database").Key("database").String()
 
+	redisHost := cfg.Section("redis").Key("host").String()
+	redisPassword := cfg.Section("redis").Key("password").String()
+	redisDB, _ := cfg.Section("redis").Key("db").Int()
+	redisCacheChannelName = cfg.Section("redis").Key("cache_channel").String()
+
 	err = dbConnect(dbUser, dbPass, dbHost, dbPort, dbName)
 	if err != nil {
 		panic(err.Error())
 	}
+
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     redisHost,
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+
+	// Ping/Pong - (Will be) Used for health check
+	go func() {
+		for {
+			_, err = redisClient.Ping().Result()
+			if err != nil {
+				fmt.Println("Unable to communicate with Redis")
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	// Listen for cache clean messages from redis
+	go func() {
+		fmt.Println("Subscribing to ", redisCacheChannelName)
+		pubsub := redisClient.Subscribe(redisCacheChannelName)
+		watchCachePurge(pubsub)
+	}()
 
 	fmt.Println("Populating data")
 	populateData()
