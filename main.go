@@ -297,7 +297,8 @@ func main() {
 		for {
 			_, err = redisClient.Ping().Result()
 			if err != nil {
-				fmt.Println("Unable to communicate with Redis")
+				fmt.Println("Unable to communicate with Redis at ", redisHost)
+				fmt.Println(err.Error())
 			}
 			time.Sleep(time.Second)
 		}

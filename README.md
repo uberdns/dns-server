@@ -10,6 +10,6 @@ This is the dns server, it is written in Go.
 
 # Quickstart
 ```
-1. go build .
-2. sudo ./dns-server
+1. docker build -t dns-server .
+1. docker run --net=host dns-server
 ```
