@@ -19,6 +19,9 @@ import (
 
 	"net/http/pprof"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/miekg/dns"
@@ -168,11 +171,6 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	topLevelDomain := strings.Join(domainSplit[1:], ".")
 	subdomain := domainSplit[0]
 
-	//fetch_domain, err := getDomain(top_level)
-	//if err != nil {
-	//		panic(err.Error())
-	//	}
-	//	domains = append(domains, fetch_domain)
 	var realDomain Domain
 	for _, d := range domains {
 		if topLevelDomain == d.Name {
@@ -233,7 +231,6 @@ func addRecordToCache(record Record) error {
 	// Set DOB to now as we're creating the object in cache
 	record.DOB = time.Now()
 	records = append(records, record)
-	fmt.Println("Added record to cache")
 	return nil
 }
 
@@ -249,16 +246,22 @@ func removeRecordFromCache(record Record) error {
 // Run through record objects currently cached and evaluate
 // whether we need to expire them (remove)
 func cleanCache() error {
-	var cleanRecords []Record
-	copy(records, cleanRecords)
+	// this is a terrible way to do this, however i couldnt find a
+	// great way to prevent "rebuilding" the list of records without
+	// yanking entries from underneath it and subsequently causing
+	// indexing/sorting errors and deleting items at wrong index
+	var newRecords []Record
+	fmt.Println(len(records))
 	for i := range records {
 		if (time.Now().Unix() - records[i].DOB.Unix()) < records[i].TTL {
-			cleanRecords = append(cleanRecords, records[i])
-		} else {
-			log.Println("Cleaning up cached record ", records[i])
+			newRecords = append(newRecords, records[i])
 		}
+		fmt.Println(len(newRecords))
 	}
-	records = cleanRecords
+	// copy newRecords to records
+	//copy(records, newRecords)
+	records = newRecords
+
 	return nil
 }
 
@@ -308,6 +311,16 @@ func watchCacheChannel(rdc *redis.PubSub) {
 }
 
 func main() {
+	var (
+		recordCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "record_cache_depth",
+			Help: "Number of records stored in cache",
+		})
+		domainCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "domain_cache_depth",
+			Help: "Number of domains stored in cache",
+		})
+	)
 	go func() {
 		r := http.NewServeMux()
 		r.HandleFunc("/debug/pprof/", pprof.Index)
@@ -336,6 +349,8 @@ func main() {
 	redisPassword := cfg.Section("redis").Key("password").String()
 	redisDB, _ := cfg.Section("redis").Key("db").Int()
 	redisCacheChannelName = cfg.Section("redis").Key("cache_channel").String()
+
+	prometheusPort := cfg.Section("prometheus").Key("port").String()
 
 	err = dbConnect(dbUser, dbPass, dbHost, dbPort, dbName)
 	if err != nil {
@@ -367,6 +382,14 @@ func main() {
 		watchCacheChannel(pubsub)
 	}()
 
+	// Start prometheus metrics
+	go func() {
+		prometheus.MustRegister(recordCacheDepthCounter)
+		prometheus.MustRegister(domainCacheDepthCounter)
+		http.Handle("/metrics", promhttp.Handler())
+		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", prometheusPort), nil))
+	}()
+
 	fmt.Println("Populating data")
 	populateData()
 	fmt.Println("Done.")
@@ -377,6 +400,8 @@ func main() {
 			if err := cleanCache(); err != nil {
 				log.Fatalf("Unable to clean up cache %s\n", err.Error())
 			}
+			recordCacheDepthCounter.Set(float64(len(records)))
+			domainCacheDepthCounter.Set(float64(len(domains)))
 			time.Sleep(time.Second)
 		}
 	}()
