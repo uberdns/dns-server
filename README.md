@@ -7,6 +7,7 @@ This is the dns server, it is written in Go.
 - (Redis) Global cache management from API/Web
   - Purge cache entries from all listening DNS servers
   - Create a cached entry from any new records
+  - Remove records from cache when deleted via API
 
 # Quickstart
 ```

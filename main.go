@@ -42,6 +42,12 @@ type Record struct {
 	DomainID int64
 }
 
+type CacheControlMessage struct {
+	Action string
+	Type   string
+	Object string
+}
+
 var domains = []Domain{}
 var records = []Record{}
 
@@ -225,6 +231,12 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	w.WriteMsg(&msg)
 }
 
+func addRecordToCache(record Record) error {
+	records = append(records, record)
+	fmt.Println("Added record to cache")
+	return nil
+}
+
 func removeRecordFromCache(record Record) error {
 	for i := range records {
 		if records[i].ID == record.ID {
@@ -250,17 +262,48 @@ func cleanCache() error {
 	return nil
 }
 
+func cacheMessageHandler(msg CacheControlMessage) error {
+	switch strings.ToLower(msg.Type) {
+	case "record":
+		var record Record
+		json.Unmarshal([]byte(msg.Object), &record)
+
+		//Record cache manage routes
+		switch strings.ToLower(msg.Action) {
+		case "create":
+			addRecordToCache(record)
+		case "purge":
+			removeRecordFromCache(record)
+		}
+	case "domain":
+		var domain Domain
+		json.Unmarshal([]byte(msg.Object), &domain)
+
+		//Domain cache manage routes
+		switch strings.ToLower(msg.Action) {
+		case "create":
+			//Create the domain object and then throw it into cache
+		case "purge":
+			//Purge the domain object from cache
+		}
+	}
+	return nil
+}
+
 // Watch for redis messages in the cache purge channel
 // when one comes in, remove the record from the cache
-func watchCachePurge(rdc *redis.PubSub) {
+func watchCacheChannel(rdc *redis.PubSub) {
 	defer rdc.Close()
-	fmt.Println("watching for redis changes")
+	log.Println("Watching for redis cache management messages...")
 	ch := rdc.Channel()
 
 	for msg := range ch {
-		var cachedRecord Record
-		json.Unmarshal([]byte(msg.Payload), &cachedRecord)
-		removeRecordFromCache(cachedRecord)
+		var cacheMsg CacheControlMessage
+		json.Unmarshal([]byte(msg.Payload), &cacheMsg)
+		// we can run this async without caring about returning a result
+		// this is just "we have a record, give cacheMessageHandler() the msg
+		// and move on with the next msg"
+		go cacheMessageHandler(cacheMsg)
 	}
 }
 
@@ -308,7 +351,7 @@ func main() {
 	go func() {
 		fmt.Println("Subscribing to ", redisCacheChannelName)
 		pubsub := redisClient.Subscribe(redisCacheChannelName)
-		watchCachePurge(pubsub)
+		watchCacheChannel(pubsub)
 	}()
 
 	fmt.Println("Populating data")
