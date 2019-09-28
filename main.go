@@ -37,6 +37,7 @@ type Record struct {
 	Name     string
 	IP       string
 	TTL      int64     //TTL for caching
+	Created  time.Time //datetime the record created in database
 	DOB      time.Time //time record created, used for cache expiry
 	DomainID int64
 }
@@ -223,6 +224,14 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 }
 
 func addRecordToCache(record Record) error {
+	// if record already exists in cache, do nothing
+	for _, i := range records {
+		if i.ID == record.ID {
+			return nil
+		}
+	}
+	// Set DOB to now as we're creating the object in cache
+	record.DOB = time.Now()
 	records = append(records, record)
 	fmt.Println("Added record to cache")
 	return nil
