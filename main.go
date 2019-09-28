@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -175,11 +174,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	//	domains = append(domains, fetch_domain)
 	var realDomain Domain
 	for _, d := range domains {
-		// Create regex string to match against per-domain
-		regexString := fmt.Sprintf(".*%s.*", d.Name)
-		match, _ := regexp.MatchString(regexString, topLevelDomain)
-		//fmt.Println(top_level)
-		if match {
+		if topLevelDomain == d.Name {
 			fmt.Println(topLevelDomain)
 			realDomain = d
 		}
