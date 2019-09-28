@@ -42,6 +42,8 @@ type Record struct {
 	DomainID int64
 }
 
+// CacheControlMessage -- struct for storing/parsing redis cache control messages
+//  					  from the api server
 type CacheControlMessage struct {
 	Action string
 	Type   string
