@@ -99,7 +99,6 @@ func populateData() error {
 		if err := rows.Scan(&id, &name); err != nil {
 			return err
 		}
-		fmt.Println("Found domain: ", name)
 
 		domains = append(domains, Domain{ID: id, Name: name})
 	}
@@ -133,9 +132,6 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 	var record Record
 
 	query := "SELECT id, name, ip_address, ttl, domain_id FROM dns_record WHERE name = ? AND domain_id = ?"
-	fmt.Println(query)
-	fmt.Println("name: ", host)
-	fmt.Println("DID: ", domainID)
 	dq, err := dbConn.Prepare(query)
 
 	if err != nil {
@@ -165,7 +161,11 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	domain := msg.Question[0].Name
 	msg.Authoritative = true
 
-	topLevelDomain := strings.TrimRight(strings.Join(strings.Split(domain, ".")[1:], "."), ".")
+	cleanDomain := strings.TrimRight(domain, ".")
+	domainSplit := strings.Split(cleanDomain, ".")
+	// Capture domain name plus TLD
+	topLevelDomain := strings.Join(domainSplit[1:], ".")
+	subdomain := domainSplit[0]
 
 	//fetch_domain, err := getDomain(top_level)
 	//if err != nil {
@@ -175,7 +175,6 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	var realDomain Domain
 	for _, d := range domains {
 		if topLevelDomain == d.Name {
-			fmt.Println(topLevelDomain)
 			realDomain = d
 		}
 	}
@@ -193,16 +192,15 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if j.DomainID != realDomain.ID {
 				continue
 			}
-			if records[i].Name == strings.Split(domain, ".")[0] {
+			if records[i].Name == subdomain {
 				device = records[i]
-				fmt.Println("Record found in cache")
 			}
 		}
 
 		if (Record{}) == device {
 			//No existing records found in local cache, perform sql lookup
 			// if the sql lookup fails then we give up
-			device, _ = getRecordFromHost(strings.Split(domain, ".")[0], realDomain.ID)
+			device, _ = getRecordFromHost(subdomain, realDomain.ID)
 
 			// Ensure non-empty device
 			if (Record{}) != device {
@@ -212,10 +210,6 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			}
 
 		}
-
-		fmt.Println("TTL: ", device.TTL)
-		fmt.Println("DOB: ", device.DOB)
-		fmt.Println("Time in cache: ", (time.Since(device.DOB)))
 
 		switch r.Question[0].Qtype {
 		case dns.TypeA:
@@ -238,9 +232,6 @@ func removeRecordFromCache(record Record) error {
 	for i := range records {
 		if records[i].ID == record.ID {
 			records = append(records[:i], records[i+1:]...)
-			//records[i] = records[len(records)-1] // Copy last element to index i
-			//records[len(records)-1] = Record{}   // Erase last element (write zero value)
-			//records = records[:len(records)-1]   // Truncate slice
 		}
 	}
 	return nil
@@ -249,13 +240,16 @@ func removeRecordFromCache(record Record) error {
 // Run through record objects currently cached and evaluate
 // whether we need to expire them (remove)
 func cleanCache() error {
+	var cleanRecords []Record
+	copy(records, cleanRecords)
 	for i := range records {
-		if (time.Now().Unix() - records[i].DOB.Unix()) > records[i].TTL {
+		if (time.Now().Unix() - records[i].DOB.Unix()) < records[i].TTL {
+			cleanRecords = append(cleanRecords, records[i])
+		} else {
 			log.Println("Cleaning up cached record ", records[i])
-			// Delete record from struct
-			records = append(records[:i], records[i+1:]...)
 		}
 	}
+	records = cleanRecords
 	return nil
 }
 
@@ -305,6 +299,19 @@ func watchCacheChannel(rdc *redis.PubSub) {
 }
 
 func main() {
+	go func() {
+		r := http.NewServeMux()
+		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+
+		http.ListenAndServe(":6060", r)
+	}()
+
 	cfg, err := ini.Load("config.ini")
 	if err != nil {
 		panic(err.Error())
@@ -354,19 +361,6 @@ func main() {
 	fmt.Println("Populating data")
 	populateData()
 	fmt.Println("Done.")
-
-	go func() {
-		r := http.NewServeMux()
-		r.HandleFunc("/debug/pprof/", pprof.Index)
-		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-
-		http.ListenAndServe(":6060", r)
-	}()
 
 	// Clean up records that exceed their TTL
 	go func() {
