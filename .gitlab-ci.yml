@@ -61,8 +61,8 @@ build:
   artifacts:
     paths:
       - dist/*
-  only:
-    - tags
-  except:
-    - branches
-    - master
+#  only:
+#    - tags
+#  except:
+#    - branches
+#    - master
