@@ -10,7 +10,7 @@ a bad description for an awesome package
 %prep
 
 %build
-go build -o dns-server .
+go build -o dns-server
 
 %install
 mkdir -p ${buildroot}/usr/local/bin
