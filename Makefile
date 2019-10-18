@@ -33,7 +33,7 @@ build: dep ## Build the binary file
 	goreleaser --snapshot --skip-publish --rm-dist
 
 build-test:
-	@rpmbuild -ba dns-server.spec
+	@rpmbuild -ba dns-server.spec --buildroot `pwd`
 
 clean: ## Remove previous build
 	@rm -f $(PROJECT_NAME)
