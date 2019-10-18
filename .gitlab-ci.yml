@@ -6,7 +6,7 @@
 #    - /go/src/gopkg.in
 
 stages:
-    #  - test
+  - test
   - build
 
 unit_tests:
