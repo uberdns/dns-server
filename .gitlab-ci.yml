@@ -54,13 +54,6 @@ build:
   stage: build
   image: golang:1.13
   before_script:
-    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
-    - eval $(ssh-agent -s)
-    - ssh-add <(echo "${GIT_SSH_PRIV_KEY}")
-    - git config --global user.email "gitlab-ci@conrey.us"
-    - git config --global user.name "Mr. Robot"
-    - mkdir -p ~/.ssh
-    - cat gitlab-known-hosts >> ~/.ssh/known_hosts 
     - apt update; apt install -y rpm
     - wget https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb && dpkg -i *.deb
   script:
