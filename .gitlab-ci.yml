@@ -51,7 +51,8 @@ lint_code:
     - make lint
 
 build:
-  stage: build
+    #stage: build
+  stage: test
   image: golang:1.13
   before_script:
     - apt update; apt install -y rpm
