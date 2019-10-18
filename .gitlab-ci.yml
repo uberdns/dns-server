@@ -57,7 +57,7 @@ build:
     - apt update; apt install -y rpm
     - wget https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb && dpkg -i *.deb
   script:
-    - make build
+    - make build-test
   artifacts:
     paths:
       - dist/*

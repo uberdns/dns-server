@@ -32,6 +32,10 @@ dep: ## Get the dependencies
 build: dep ## Build the binary file
 	goreleaser --snapshot --skip-publish --rm-dist
 
+build-test:
+	@rpmdev-setuptree
+	@rpmbuild -ba dns-server.spec
+
 clean: ## Remove previous build
 	@rm -f $(PROJECT_NAME)
 
