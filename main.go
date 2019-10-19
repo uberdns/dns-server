@@ -328,11 +328,11 @@ func watchCacheChannel(rdc *redis.PubSub) {
 func main() {
 	var (
 		recordCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "record_cache_depth",
+			Name: "uberdns_dns_record_cache_depth",
 			Help: "Number of records stored in cache",
 		})
 		domainCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "domain_cache_depth",
+			Name: "uberdns_dns_domain_cache_depth",
 			Help: "Number of domains stored in cache",
 		})
 	)
