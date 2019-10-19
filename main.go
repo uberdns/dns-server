@@ -57,24 +57,37 @@ type CacheControlMessage struct {
 var domains = []Domain{}
 var records = []Record{}
 
+// Global DEBUG var used for logging
+var DEBUG = false
+
 var redisClient *redis.Client
 var redisCacheChannelName string
 var dbConn sql.DB
 
+func debugMsg(msg string) {
+	if DEBUG {
+		log.Println("[DEBUG] " + msg)
+	}
+}
+
 func dbConnect(username string, password string, host string, port int, database string) error {
 	conn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", username, password, host, port, database)
+	debugMsg("Connecting to " + host)
 	dbc, err := sql.Open("mysql", conn)
 
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
+	debugMsg("Connected to " + host)
 
 	//defer dbc.Close()
 
 	err = dbc.Ping()
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err)
 	}
+
+	debugMsg("DB Ping successful")
 
 	dbConn = *dbc
 	return nil
@@ -82,6 +95,7 @@ func dbConnect(username string, password string, host string, port int, database
 
 func populateData() error {
 	query := "SELECT id, name FROM dns_domain"
+	debugMsg("Query: " + query)
 	dq, err := dbConn.Prepare(query)
 
 	if err != nil {
@@ -104,7 +118,7 @@ func populateData() error {
 		if err := rows.Scan(&id, &name); err != nil {
 			return err
 		}
-
+		debugMsg("Domain found: " + name)
 		domains = append(domains, Domain{ID: id, Name: name})
 	}
 
@@ -115,8 +129,8 @@ func getDomain(domainName string) (Domain, error) {
 	var domain Domain
 
 	query := "SELECT id FROM dns_domain WHERE name = ?"
-
 	dq, err := dbConn.Prepare(query)
+	debugMsg("Query: " + query)
 
 	if err != nil {
 		panic(err.Error())
@@ -129,6 +143,7 @@ func getDomain(domainName string) (Domain, error) {
 		panic(err.Error())
 	}
 	domain.Name = domainName
+	debugMsg(fmt.Sprintf("Found domain ID %d", domain.ID))
 
 	return domain, nil
 }
@@ -138,6 +153,7 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 
 	query := "SELECT id, name, ip_address, ttl, domain_id FROM dns_record WHERE name = ? AND domain_id = ?"
 	dq, err := dbConn.Prepare(query)
+	debugMsg("Query: " + query)
 
 	if err != nil {
 		log.Fatal(err)
@@ -148,7 +164,7 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 	err = dq.QueryRow(host, domainID).Scan(&record.ID, &record.Name, &record.IP, &record.TTL, &record.DomainID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("Lookup failed but domain was valid.")
+			log.Println("Lookup failed but domain was valid.")
 		} else {
 			log.Fatal(err)
 		}
@@ -204,7 +220,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 			// Ensure non-empty device
 			if (Record{}) != device {
-				fmt.Println("Non-cached record, adding to cache")
+				log.Println("Non-cached record, adding to cache")
 				device.DOB = time.Now()
 				records = append(records, device)
 			}
@@ -334,7 +350,10 @@ func main() {
 	}()
 
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
+	debug := flag.Bool("debug", false, "Toggle debug mode.")
 	flag.Parse()
+
+	DEBUG = *debug
 
 	cfg, err := ini.Load(*cfgFile)
 	if err != nil {
@@ -370,8 +389,8 @@ func main() {
 		for {
 			_, err = redisClient.Ping().Result()
 			if err != nil {
-				fmt.Println("Unable to communicate with Redis at ", redisHost)
-				fmt.Println(err.Error())
+				log.Println("Unable to communicate with Redis at ", redisHost)
+				log.Println(err.Error())
 			}
 			time.Sleep(time.Second)
 		}
@@ -379,7 +398,7 @@ func main() {
 
 	// Listen for cache clean messages from redis
 	go func() {
-		fmt.Println("Subscribing to ", redisCacheChannelName)
+		log.Println("Subscribing to ", redisCacheChannelName)
 		pubsub := redisClient.Subscribe(redisCacheChannelName)
 		watchCacheChannel(pubsub)
 	}()
@@ -392,9 +411,9 @@ func main() {
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", prometheusPort), nil))
 	}()
 
-	fmt.Println("Populating data")
+	log.Println("Populating data")
 	populateData()
-	fmt.Println("Done.")
+	log.Println("Done.")
 
 	// Clean up records that exceed their TTL
 	go func() {
