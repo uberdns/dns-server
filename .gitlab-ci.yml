@@ -58,7 +58,7 @@ build:
     - apt update; apt install -y rpm
     - wget https://github.com/goreleaser/goreleaser/releases/download/v0.118.0/goreleaser_amd64.deb && dpkg -i *.deb
     - "[ -d /root/rpmbuild/BUILD ] || mkdir -p /root/rpmbuild/BUILD"
-    - cp -R /builds/lsoftop/dns-server/* /root/rpmbuild/BUILD
+    - cp /builds/lsoftop/dns-server/*.go /root/rpmbuild/BUILD
   script:
     - make build-test
   artifacts:
