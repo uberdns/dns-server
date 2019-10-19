@@ -19,9 +19,11 @@ go build -o dns-server
 mkdir -p %{buildroot}/usr/local/bin
 mkdir -p %{buildroot}/etc/systemd/system
 install -m 755 dns-server %{buildroot}/usr/local/bin/dns-server
+install -m 755 dns-server.service %{buildroot}/etc/systemd/system/dns-server.service
 
 %files
 /usr/local/bin/dns-server
+/etc/systemd/system/dns-server.service
 
 %changelog
 # We will revisit
