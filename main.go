@@ -251,12 +251,10 @@ func cleanCache() error {
 	// yanking entries from underneath it and subsequently causing
 	// indexing/sorting errors and deleting items at wrong index
 	var newRecords []Record
-	fmt.Println(len(records))
 	for i := range records {
 		if (time.Now().Unix() - records[i].DOB.Unix()) < records[i].TTL {
 			newRecords = append(newRecords, records[i])
 		}
-		fmt.Println(len(newRecords))
 	}
 	// copy newRecords to records
 	//copy(records, newRecords)
