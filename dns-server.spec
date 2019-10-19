@@ -1,5 +1,5 @@
 Name: dns-server
-Version: 0.0.2
+Version: 0.0.3
 Release: 1
 Summary: DNS Server
 License: FIXME
