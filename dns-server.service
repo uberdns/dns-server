@@ -1,0 +1,12 @@
+[Unit]
+Description=UberDNS DNS Server
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+User=root
+ExecStart=/usr/local/bin/dns-server -config /etc/uberdns/config.ini
+
+[Install]
+WantedBy=multi-user.target

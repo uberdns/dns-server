@@ -6,6 +6,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -332,7 +333,10 @@ func main() {
 		http.ListenAndServe(":6060", r)
 	}()
 
-	cfg, err := ini.Load("config.ini")
+	cfgFile := flag.String("config", "config.ini", "Path to the config file")
+	flag.Parse()
+
+	cfg, err := ini.Load(*cfgFile)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -348,7 +352,7 @@ func main() {
 	redisDB, _ := cfg.Section("redis").Key("db").Int()
 	redisCacheChannelName = cfg.Section("redis").Key("cache_channel").String()
 
-	prometheusPort := cfg.Section("prometheus").Key("port").String()
+	prometheusPort := cfg.Section("dns").Key("prometheus_port").String()
 
 	err = dbConnect(dbUser, dbPass, dbHost, dbPort, dbName)
 	if err != nil {

@@ -1,5 +1,5 @@
 Name: dns-server
-Version: 0.0.1
+Version: 0.0.2
 Release: 1
 Summary: DNS Server
 License: FIXME
@@ -17,6 +17,7 @@ go build -o dns-server
 
 %install
 mkdir -p %{buildroot}/usr/local/bin
+mkdir -p %{buildroot}/etc/systemd/system
 install -m 755 dns-server %{buildroot}/usr/local/bin/dns-server
 
 %files
