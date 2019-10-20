@@ -388,6 +388,14 @@ func cleanCache() error {
 	//copy(records, newRecords)
 	records = newRecords
 
+	var newRecursiveRecords []Record
+	for i := range recursiveRecords {
+		if (time.Now().Unix() - recursiveRecords[i].DOB.Unix()) < recursiveRecords[i].TTL {
+			newRecursiveRecords = append(newRecursiveRecords, recursiveRecords[i])
+		}
+	}
+	recursiveRecords = newRecursiveRecords
+
 	return nil
 }
 
