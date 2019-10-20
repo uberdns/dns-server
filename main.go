@@ -438,22 +438,23 @@ func watchCacheChannel(rdc *redis.PubSub) {
 
 func main() {
 	var (
-		recordCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "uberdns_dns_record_cache_depth",
-			Help: "Number of records stored in cache",
-		})
-		domainCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "uberdns_dns_domain_cache_depth",
-			Help: "Number of domains stored in cache",
-		})
-		recurseRecordCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "uberdns_dns_recurse_record_cache_depth",
-			Help: "Number of records stored in cache",
-		})
-		recurseDomainCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "uberdns_dns_recurse_domain_cache_depth",
-			Help: "Number of domains stored in cache",
-		})
+		recordCacheDepthCounter = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "uberdns_record_cache_depth",
+			},
+			[]string{
+				"type",
+			},
+		)
+
+		domainCacheDepthCounter = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "uberdns_domain_cache_depth",
+			},
+			[]string{
+				"type",
+			},
+		)
 	)
 	go func() {
 		r := http.NewServeMux()
@@ -540,10 +541,10 @@ func main() {
 			if err := cleanCache(); err != nil {
 				log.Fatalf("Unable to clean up cache %s\n", err.Error())
 			}
-			recordCacheDepthCounter.Set(float64(len(records)))
-			domainCacheDepthCounter.Set(float64(len(domains)))
-			recurseRecordCacheDepthCounter.Set(float64(len(records)))
-			recurseDomainCacheDepthCounter.Set(float64(len(domains)))
+			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
+			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
+			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
+			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
 			time.Sleep(time.Second)
 		}
 	}()
