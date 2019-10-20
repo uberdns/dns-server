@@ -57,6 +57,9 @@ type CacheControlMessage struct {
 var domains = []Domain{}
 var records = []Record{}
 
+var recursiveDomains = []Domain{}
+var recursiveRecords = []Record{}
+
 // Global DEBUG var used for logging
 var DEBUG = false
 
@@ -174,6 +177,30 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 
 }
 
+func recurseResolve(fqdn string) *dns.A {
+	if string(fqdn[len(fqdn)-1]) != "." {
+		fqdn = fqdn + "."
+	}
+
+	msg := new(dns.Msg)
+	msg.Id = dns.Id()
+	msg.RecursionDesired = true
+	msg.Question = make([]dns.Question, 1)
+	msg.Question[0] = dns.Question{fqdn, dns.TypeA, dns.ClassINET}
+
+	c := new(dns.Client)
+	in, _, err := c.Exchange(msg, "1.1.1.1:53")
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if t, ok := in.Answer[0].(*dns.A); ok {
+		return t
+	}
+	return nil
+}
+
 type handler struct{}
 
 func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
@@ -185,8 +212,15 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	cleanDomain := strings.TrimRight(domain, ".")
 	domainSplit := strings.Split(cleanDomain, ".")
 	// Capture domain name plus TLD
-	topLevelDomain := strings.Join(domainSplit[1:], ".")
-	subdomain := domainSplit[0]
+	var subdomain string
+	var topLevelDomain string
+	if strings.Count(cleanDomain, ".") > 1 {
+		subdomain = domainSplit[0]
+		domainSplit := strings.Split(cleanDomain, ".")
+		topLevelDomain = strings.Join(domainSplit[1:], ".")
+	} else {
+		topLevelDomain = cleanDomain
+	}
 
 	var realDomain Domain
 	for _, d := range domains {
@@ -196,11 +230,88 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	if (Domain{}) == realDomain {
-		// if we dont know this domain, bail and return an empty set
-		msg.Answer = append(msg.Answer, &dns.A{
-			Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-			A:   net.ParseIP(""),
-		})
+		debugMsg("Starting recursive lookup")
+
+		var recurseDomain Domain
+		for _, d := range recursiveDomains {
+			if domain == d.Name {
+				recurseDomain = d
+			}
+		}
+
+		if (Domain{}) == recurseDomain {
+			debugMsg("Recurse domain not found, performing lookup")
+			rr := recurseResolve(domain)
+			if rr != nil {
+				rrd := Domain{
+					ID:   int64(len(recursiveDomains)),
+					Name: rr.Hdr.Name,
+				}
+				debugMsg("Adding recursive domain to local cache")
+				recursiveDomains = append(recursiveDomains, rrd)
+				msg.Answer = append(msg.Answer, rr)
+				w.WriteMsg(&msg)
+				rrr := Record{
+					ID:       len(recursiveRecords),
+					Name:     subdomain,
+					IP:       rr.A.String(),
+					TTL:      int64(rr.Hdr.Ttl),
+					Created:  time.Now(),
+					DOB:      time.Now(),
+					DomainID: rrd.ID,
+				}
+				recursiveRecords = append(recursiveRecords, rrr)
+			} else {
+				// if we dont know this domain, bail and return an empty set
+				msg.Answer = append(msg.Answer, &dns.A{
+					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+					A:   net.ParseIP(""),
+				})
+				w.WriteMsg(&msg)
+			}
+		} else {
+			debugMsg("Recurse domain found in cache")
+			var device Record
+			for i, j := range recursiveRecords {
+				if j.DomainID != recurseDomain.ID {
+					continue
+				}
+				if recursiveRecords[i].Name == subdomain {
+					device = recursiveRecords[i]
+				}
+			}
+
+			if (Record{}) == device {
+				rr := recurseResolve(domain)
+
+				debugMsg("Recurse record not found in cache, performing lookup")
+
+				msg.Answer = append(msg.Answer, rr)
+				w.WriteMsg(&msg)
+
+				rrr := Record{
+					ID:       len(recursiveRecords),
+					Name:     subdomain,
+					TTL:      int64(rr.Hdr.Ttl),
+					IP:       rr.A.String(),
+					Created:  time.Now(),
+					DOB:      time.Now(),
+					DomainID: recurseDomain.ID,
+				}
+				recursiveRecords = append(recursiveRecords, rrr)
+			} else {
+				debugMsg("Returning cached recursive record")
+
+				msg.Answer = append(msg.Answer, &dns.A{
+					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(device.TTL)},
+					A:   net.ParseIP(device.IP),
+				})
+			}
+			err := w.WriteMsg(&msg)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
 	} else {
 		// Domain matches, we should continue to search
 		var device Record
