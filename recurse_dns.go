@@ -27,6 +27,8 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 		recordTypeConst = dns.TypeTXT
 	case "AAAA":
 		recordTypeConst = dns.TypeAAAA
+	case "CNAME":
+		recordTypeConst = dns.TypeCNAME
 	}
 
 	msg.Question[0] = dns.Question{fqdn, recordTypeConst, dns.ClassINET}

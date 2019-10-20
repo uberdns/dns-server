@@ -76,18 +76,6 @@ func main() {
 			},
 		)
 	)
-	go func() {
-		r := http.NewServeMux()
-		r.HandleFunc("/debug/pprof/", pprof.Index)
-		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-
-		http.ListenAndServe(":6060", r)
-	}()
 
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
 	debug := flag.Bool("debug", false, "Toggle debug mode.")
@@ -112,6 +100,20 @@ func main() {
 	redisCacheChannelName = cfg.Section("redis").Key("cache_channel").String()
 
 	prometheusPort := cfg.Section("dns").Key("prometheus_port").String()
+	pprofPort, _ := cfg.Section("dns").Key("pprof_port").Int()
+	// Start pprof
+	go func() {
+		r := http.NewServeMux()
+		r.HandleFunc("/debug/pprof/", pprof.Index)
+		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		r.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		r.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+
+		http.ListenAndServe(fmt.Sprintf(":%d", pprofPort), r)
+	}()
 
 	err = dbConnect(dbUser, dbPass, dbHost, dbPort, dbName)
 	if err != nil {
