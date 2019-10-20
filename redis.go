@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis"
 )
@@ -46,10 +47,12 @@ func cacheMessageHandler(msg CacheControlMessage) error {
 
 // Watch for redis messages in the cache purge channel
 // when one comes in, remove the record from the cache
-func watchCacheChannel(rdc *redis.PubSub) {
-	defer rdc.Close()
-	log.Println("Watching for redis cache management messages...")
-	ch := rdc.Channel()
+func watchCacheChannel(rdc *redis.Client, cacheChannel string) {
+	log.Printf("[REDIS] Subscribing to %s", cacheChannel)
+	pubsub := rdc.Subscribe(cacheChannel)
+	defer pubsub.Close()
+	log.Println("[REDIS] Watching for cache management messages...")
+	ch := pubsub.Channel()
 
 	for msg := range ch {
 		var cacheMsg CacheControlMessage
@@ -59,4 +62,28 @@ func watchCacheChannel(rdc *redis.PubSub) {
 		// and move on with the next msg"
 		go cacheMessageHandler(cacheMsg)
 	}
+}
+
+func redisConnect(redisHost string, redisPassword string, redisDB int) *redis.Client {
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisHost,
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+
+	// Ping/Pong - (Will be) Used for health check
+	go func() {
+		for {
+			ticker := time.NewTicker(time.Second)
+			select {
+			case _ = <-ticker.C:
+				_, err := redisClient.Ping().Result()
+				if err != nil {
+					log.Println("[REDIS] Unable to communicate with " + redisHost)
+				}
+			}
+		}
+	}()
+
+	return redisClient
 }

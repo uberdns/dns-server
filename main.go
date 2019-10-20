@@ -115,29 +115,11 @@ func main() {
 		panic(err.Error())
 	}
 
-	redisClient = redis.NewClient(&redis.Options{
-		Addr:     redisHost,
-		Password: redisPassword,
-		DB:       redisDB,
-	})
-
-	// Ping/Pong - (Will be) Used for health check
-	go func() {
-		for {
-			_, err = redisClient.Ping().Result()
-			if err != nil {
-				log.Println("Unable to communicate with Redis at ", redisHost)
-				log.Println(err.Error())
-			}
-			time.Sleep(time.Second)
-		}
-	}()
+	redisClient = redisConnect(redisHost, redisPassword, redisDB)
 
 	// Listen for cache clean messages from redis
 	go func() {
-		log.Println("Subscribing to ", redisCacheChannelName)
-		pubsub := redisClient.Subscribe(redisCacheChannelName)
-		watchCacheChannel(pubsub)
+		watchCacheChannel(redisClient, redisCacheChannelName)
 	}()
 
 	// Start prometheus metrics
@@ -155,14 +137,21 @@ func main() {
 	// Clean up records that exceed their TTL
 	go func() {
 		for {
-			if err := cleanCache(); err != nil {
-				log.Fatalf("Unable to clean up cache %s\n", err.Error())
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case _ = <-ticker.C:
+					if err := cleanCache(); err != nil {
+						log.Fatalf("Unable to clean up cache %s\n", err.Error())
+					}
+					recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
+					domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
+					recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
+					domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
+				}
 			}
-			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
-			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
-			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
-			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
-			time.Sleep(time.Second)
 		}
 	}()
 
