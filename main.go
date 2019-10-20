@@ -446,6 +446,14 @@ func main() {
 			Name: "uberdns_dns_domain_cache_depth",
 			Help: "Number of domains stored in cache",
 		})
+		recurseRecordCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "uberdns_dns_recurse_record_cache_depth",
+			Help: "Number of records stored in cache",
+		})
+		recurseDomainCacheDepthCounter = prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "uberdns_dns_recurse_domain_cache_depth",
+			Help: "Number of domains stored in cache",
+		})
 	)
 	go func() {
 		r := http.NewServeMux()
@@ -534,6 +542,8 @@ func main() {
 			}
 			recordCacheDepthCounter.Set(float64(len(records)))
 			domainCacheDepthCounter.Set(float64(len(domains)))
+			recurseRecordCacheDepthCounter.Set(float64(len(records)))
+			recurseDomainCacheDepthCounter.Set(float64(len(domains)))
 			time.Sleep(time.Second)
 		}
 	}()
