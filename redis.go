@@ -75,6 +75,8 @@ func redisConnect(redisHost string, redisPassword string, redisDB int) *redis.Cl
 	go func() {
 		for {
 			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+
 			select {
 			case _ = <-ticker.C:
 				_, err := redisClient.Ping().Result()
