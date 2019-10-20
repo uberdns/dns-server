@@ -1,3 +1,6 @@
+//To-Do:
+//  - cache + return cname records (currently returns cname on first lookup then returns cached A record)
+//  - ttl returns constant value - should be decremented from cache DOB + time in cache
 package main
 
 import (

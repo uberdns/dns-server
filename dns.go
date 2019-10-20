@@ -37,18 +37,28 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
 		w.WriteMsg(&msg)
+		return
 	case dns.TypeMX:
 		rr := recurseResolve(msg.Question[0].Name, "MX")
 		for i := range rr {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
 		w.WriteMsg(&msg)
+		return
 	case dns.TypeAAAA:
 		rr := recurseResolve(msg.Question[0].Name, "AAAA")
 		for i := range rr {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
 		w.WriteMsg(&msg)
+		return
+	case dns.TypeCNAME:
+		rr := recurseResolve(msg.Question[0].Name, "CNAME")
+		for i := range rr {
+			msg.Answer = append(msg.Answer, rr[i])
+		}
+		w.WriteMsg(&msg)
+		return
 	}
 
 	var realDomain Domain
@@ -74,21 +84,25 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			for i := range rr {
 				rrd := Domain{
 					ID:   int64(len(recursiveDomains)),
-					Name: rr[i].(*dns.A).Hdr.Name,
+					Name: rr[i].Header().Name,
 				}
 				debugMsg("Adding recursive domain to local cache")
 				recursiveDomains[int(rrd.ID)] = rrd
 				msg.Answer = append(msg.Answer, rr[i])
-				rrr := Record{
-					ID:       len(recursiveRecords),
-					Name:     subdomain,
-					IP:       rr[i].(*dns.A).A.String(),
-					TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
-					Created:  time.Now(),
-					DOB:      time.Now(),
-					DomainID: rrd.ID,
+				// if its an A record, we should cache it!
+				switch rr[i].Header().Rrtype {
+				case dns.TypeA:
+					rrr := Record{
+						ID:       len(recursiveRecords),
+						Name:     subdomain,
+						IP:       rr[i].(*dns.A).A.String(),
+						TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
+						Created:  time.Now(),
+						DOB:      time.Now(),
+						DomainID: rrd.ID,
+					}
+					recursiveRecords[rrr.ID] = rrr
 				}
-				recursiveRecords[rrr.ID] = rrr
 			}
 			w.WriteMsg(&msg)
 		} else {
@@ -109,17 +123,20 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				debugMsg("Recurse record not found in cache, performing lookup")
 
 				for i := range rr {
-					msg.Answer = append(msg.Answer, rr[i].(*dns.A))
-					rrr := Record{
-						ID:       len(recursiveRecords),
-						Name:     subdomain,
-						TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
-						IP:       rr[i].(*dns.A).A.String(),
-						Created:  time.Now(),
-						DOB:      time.Now(),
-						DomainID: recurseDomain.ID,
+					msg.Answer = append(msg.Answer, rr[i])
+					switch rr[i].Header().Rrtype {
+					case dns.TypeA:
+						rrr := Record{
+							ID:       len(recursiveRecords),
+							Name:     subdomain,
+							TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
+							IP:       rr[i].(*dns.A).A.String(),
+							Created:  time.Now(),
+							DOB:      time.Now(),
+							DomainID: recurseDomain.ID,
+						}
+						recursiveRecords[rrr.ID] = rrr
 					}
-					recursiveRecords[rrr.ID] = rrr
 				}
 				w.WriteMsg(&msg)
 
