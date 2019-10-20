@@ -30,6 +30,27 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		topLevelDomain = cleanDomain
 	}
 
+	switch r.Question[0].Qtype {
+	case dns.TypeTXT:
+		rr := recurseResolve(msg.Question[0].Name, "TXT")
+		for i := range rr {
+			msg.Answer = append(msg.Answer, rr[i])
+		}
+		w.WriteMsg(&msg)
+	case dns.TypeMX:
+		rr := recurseResolve(msg.Question[0].Name, "MX")
+		for i := range rr {
+			msg.Answer = append(msg.Answer, rr[i])
+		}
+		w.WriteMsg(&msg)
+	case dns.TypeAAAA:
+		rr := recurseResolve(msg.Question[0].Name, "AAAA")
+		for i := range rr {
+			msg.Answer = append(msg.Answer, rr[i])
+		}
+		w.WriteMsg(&msg)
+	}
+
 	var realDomain Domain
 	for _, d := range domains {
 		if topLevelDomain == d.Name {
@@ -49,34 +70,27 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		if (Domain{}) == recurseDomain {
 			debugMsg("Recurse domain not found, performing lookup")
-			rr := recurseResolve(domain)
-			if rr != nil {
+			rr := recurseResolve(domain, "A")
+			for i := range rr {
 				rrd := Domain{
 					ID:   int64(len(recursiveDomains)),
-					Name: rr.Hdr.Name,
+					Name: rr[i].(*dns.A).Hdr.Name,
 				}
 				debugMsg("Adding recursive domain to local cache")
 				recursiveDomains[int(rrd.ID)] = rrd
-				msg.Answer = append(msg.Answer, rr)
-				w.WriteMsg(&msg)
+				msg.Answer = append(msg.Answer, rr[i])
 				rrr := Record{
 					ID:       len(recursiveRecords),
 					Name:     subdomain,
-					IP:       rr.A.String(),
-					TTL:      int64(rr.Hdr.Ttl),
+					IP:       rr[i].(*dns.A).A.String(),
+					TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 					Created:  time.Now(),
 					DOB:      time.Now(),
 					DomainID: rrd.ID,
 				}
 				recursiveRecords[rrr.ID] = rrr
-			} else {
-				// if we dont know this domain, bail and return an empty set
-				msg.Answer = append(msg.Answer, &dns.A{
-					Hdr: dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
-					A:   net.ParseIP(""),
-				})
-				w.WriteMsg(&msg)
 			}
+			w.WriteMsg(&msg)
 		} else {
 			debugMsg("Recurse domain found in cache")
 			var device Record
@@ -90,23 +104,25 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			}
 
 			if (Record{}) == device {
-				rr := recurseResolve(domain)
+				rr := recurseResolve(domain, "A")
 
 				debugMsg("Recurse record not found in cache, performing lookup")
 
-				msg.Answer = append(msg.Answer, rr)
+				for i := range rr {
+					msg.Answer = append(msg.Answer, rr[i].(*dns.A))
+					rrr := Record{
+						ID:       len(recursiveRecords),
+						Name:     subdomain,
+						TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
+						IP:       rr[i].(*dns.A).A.String(),
+						Created:  time.Now(),
+						DOB:      time.Now(),
+						DomainID: recurseDomain.ID,
+					}
+					recursiveRecords[rrr.ID] = rrr
+				}
 				w.WriteMsg(&msg)
 
-				rrr := Record{
-					ID:       len(recursiveRecords),
-					Name:     subdomain,
-					TTL:      int64(rr.Hdr.Ttl),
-					IP:       rr.A.String(),
-					Created:  time.Now(),
-					DOB:      time.Now(),
-					DomainID: recurseDomain.ID,
-				}
-				recursiveRecords[rrr.ID] = rrr
 			} else {
 				debugMsg("Returning cached recursive record")
 

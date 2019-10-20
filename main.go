@@ -140,18 +140,17 @@ func main() {
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 
-			for {
-				select {
-				case _ = <-ticker.C:
-					if err := cleanCache(); err != nil {
-						log.Fatalf("Unable to clean up cache %s\n", err.Error())
-					}
-					recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
-					domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
-					recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
-					domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
+			select {
+			case _ = <-ticker.C:
+				if err := cleanCache(); err != nil {
+					log.Fatalf("Unable to clean up cache %s\n", err.Error())
 				}
+				recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
+				domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
+				recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
+				domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
 			}
+
 		}
 	}()
 

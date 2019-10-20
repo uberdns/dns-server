@@ -6,7 +6,7 @@ import (
 	"github.com/miekg/dns"
 )
 
-func recurseResolve(fqdn string) *dns.A {
+func recurseResolve(fqdn string, recordType string) []dns.RR {
 	if string(fqdn[len(fqdn)-1]) != "." {
 		fqdn = fqdn + "."
 	}
@@ -15,7 +15,21 @@ func recurseResolve(fqdn string) *dns.A {
 	msg.Id = dns.Id()
 	msg.RecursionDesired = true
 	msg.Question = make([]dns.Question, 1)
-	msg.Question[0] = dns.Question{fqdn, dns.TypeA, dns.ClassINET}
+
+	var recordTypeConst uint16
+
+	switch recordType {
+	case "A":
+		recordTypeConst = dns.TypeA
+	case "MX":
+		recordTypeConst = dns.TypeMX
+	case "TXT":
+		recordTypeConst = dns.TypeTXT
+	case "AAAA":
+		recordTypeConst = dns.TypeAAAA
+	}
+
+	msg.Question[0] = dns.Question{fqdn, recordTypeConst, dns.ClassINET}
 
 	c := new(dns.Client)
 	in, _, err := c.Exchange(msg, "1.1.1.1:53")
@@ -24,8 +38,5 @@ func recurseResolve(fqdn string) *dns.A {
 		log.Fatal(err)
 	}
 
-	if t, ok := in.Answer[0].(*dns.A); ok {
-		return t
-	}
-	return nil
+	return in.Answer
 }
