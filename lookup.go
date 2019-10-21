@@ -6,20 +6,21 @@ import (
 	"log"
 )
 
-func populateData() error {
+func populateData(done chan<- bool) {
+	log.Println("[DATA] Populating data.")
 	query := "SELECT id, name FROM dns_domain"
 	debugMsg("Query: " + query)
 	dq, err := dbConn.Prepare(query)
 
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	defer dq.Close()
 
 	rows, err := dq.Query()
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
 	for rows.Next() {
@@ -29,13 +30,14 @@ func populateData() error {
 		)
 
 		if err := rows.Scan(&id, &name); err != nil {
-			return err
+			log.Fatal(err)
 		}
 		debugMsg("Domain found: " + name)
 		domains[int(id)] = Domain{ID: id, Name: name}
 	}
+	log.Println("[DATA] Data populated.")
 
-	return nil
+	done <- true
 }
 
 func getDomain(domainName string) (Domain, error) {

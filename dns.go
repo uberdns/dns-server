@@ -101,7 +101,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						DOB:      time.Now(),
 						DomainID: rrd.ID,
 					}
-					recursiveRecords[rrr.ID] = rrr
+					addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 				}
 			}
 			w.WriteMsg(&msg)
@@ -135,7 +135,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 							DOB:      time.Now(),
 							DomainID: recurseDomain.ID,
 						}
-						recursiveRecords[rrr.ID] = rrr
+						addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 					}
 				}
 				w.WriteMsg(&msg)
@@ -174,7 +174,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if (Record{}) != device {
 				log.Println("Non-cached record, adding to cache")
 				device.DOB = time.Now()
-				records[device.ID] = device
+				addRecordToCache(device, records, recordCacheChannel, recordCachePurgeChannel)
 			}
 
 		}

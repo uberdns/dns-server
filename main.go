@@ -49,6 +49,11 @@ var records = map[int]Record{}
 var recursiveDomains = map[int]Domain{}
 var recursiveRecords = map[int]Record{}
 
+var recordCacheChannel = make(chan Record)
+var recordCachePurgeChannel = make(chan Record)
+var recursiveCacheChannel = make(chan Record)
+var recursiveCachePurgeChannel = make(chan Record)
+
 // DEBUG var used for logging
 var DEBUG = false
 
@@ -135,27 +140,21 @@ func main() {
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", prometheusPort), nil))
 	}()
 
-	log.Println("Populating data")
-	populateData()
-	log.Println("Done.")
+	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords)
+	go watchCache(recordCacheChannel, recordCachePurgeChannel, records)
+
+	dp := make(chan bool, 1)
+	populateData(dp)
+	<-dp
 
 	// Clean up records that exceed their TTL
 	go func() {
-		for {
-			ticker := time.NewTicker(time.Second)
-			defer ticker.Stop()
-
-			select {
-			case _ = <-ticker.C:
-				if err := cleanCache(); err != nil {
-					log.Fatalf("Unable to clean up cache %s\n", err.Error())
-				}
-				recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
-				domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
-				recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
-				domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
-			}
-
+		ticker := time.NewTicker(500 * time.Millisecond)
+		for range ticker.C {
+			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
+			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
+			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
+			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
 		}
 	}()
 
