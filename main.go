@@ -112,6 +112,8 @@ func main() {
 	// Start pprof
 	go func() {
 		r := http.NewServeMux()
+		r.HandleFunc("/debug/domain/", debugDomainHandler)
+		r.HandleFunc("/debug/record/", debugRecordHandler)
 		r.HandleFunc("/debug/pprof/", pprof.Index)
 		r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 		r.HandleFunc("/debug/pprof/profile", pprof.Profile)
