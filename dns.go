@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -10,6 +11,17 @@ import (
 )
 
 type handler struct{}
+
+func domainChannelHandler(channel <-chan Domain, domSlice map[int]Domain) {
+	for {
+		select {
+		case msg := <-channel:
+			debugMsg(fmt.Sprintf("[Domain] Adding domain %s to cache", msg.Name))
+			domSlice[int(msg.ID)] = msg
+			debugMsg(fmt.Sprintf("[Domain] Added domain %s to cache", msg.Name))
+		}
+	}
+}
 
 func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	msg := dns.Msg{}
@@ -87,7 +99,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					Name: rr[i].Header().Name,
 				}
 				debugMsg("Adding recursive domain to local cache")
-				recursiveDomains[int(rrd.ID)] = rrd
+				addDomainToCache(rrd, recursiveDomains, recursiveDomainChannel)
 				msg.Answer = append(msg.Answer, rr[i])
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
@@ -101,7 +113,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						DOB:      time.Now(),
 						DomainID: rrd.ID,
 					}
-					addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
+					go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 				}
 			}
 			w.WriteMsg(&msg)
@@ -135,7 +147,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 							DOB:      time.Now(),
 							DomainID: recurseDomain.ID,
 						}
-						addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
+						go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 					}
 				}
 				w.WriteMsg(&msg)
@@ -174,7 +186,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if (Record{}) != device {
 				log.Println("Non-cached record, adding to cache")
 				device.DOB = time.Now()
-				addRecordToCache(device, records, recordCacheChannel, recordCachePurgeChannel)
+				go addRecordToCache(device, records, recordCacheChannel, recordCachePurgeChannel)
 			}
 
 		}

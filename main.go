@@ -46,6 +46,9 @@ type Record struct {
 var domains = map[int]Domain{}
 var records = map[int]Record{}
 
+var domainChannel = make(chan Domain)
+var recursiveDomainChannel = make(chan Domain)
+
 var recursiveDomains = map[int]Domain{}
 var recursiveRecords = map[int]Record{}
 
@@ -142,6 +145,9 @@ func main() {
 
 	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords)
 	go watchCache(recordCacheChannel, recordCachePurgeChannel, records)
+
+	go domainChannelHandler(domainChannel, domains)
+	go domainChannelHandler(recursiveDomainChannel, recursiveDomains)
 
 	dp := make(chan bool, 1)
 	populateData(dp)

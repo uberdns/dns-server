@@ -42,6 +42,17 @@ func addRecordToCache(record Record, recSlice map[int]Record, cacheChan chan<- R
 	return nil
 }
 
+func addDomainToCache(domain Domain, recSlice map[int]Domain, cacheChan chan<- Domain) {
+	if recSlice[int(domain.ID)] == domain {
+		fmt.Println("this domain is already cached")
+		return
+	}
+	debugMsg(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domain.Name))
+	cacheChan <- domain
+	debugMsg(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domain.Name))
+	return
+}
+
 func watchCache(cacheChan <-chan Record, cachePurgeChan <-chan Record, recSlice map[int]Record) {
 	for {
 		select {
