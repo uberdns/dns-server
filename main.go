@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -56,6 +57,12 @@ var recordCacheChannel = make(chan Record)
 var recordCachePurgeChannel = make(chan Record)
 var recursiveCacheChannel = make(chan Record)
 var recursiveCachePurgeChannel = make(chan Record)
+
+var domainMutex = sync.RWMutex{}
+var recursiveDomainMutex = sync.RWMutex{}
+
+var recordMutex = sync.RWMutex{}
+var recursiveRecordMutex = sync.RWMutex{}
 
 // DEBUG var used for logging
 var DEBUG = false
@@ -145,11 +152,11 @@ func main() {
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", prometheusPort), nil))
 	}()
 
-	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords)
-	go watchCache(recordCacheChannel, recordCachePurgeChannel, records)
+	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords, recursiveRecordMutex)
+	go watchCache(recordCacheChannel, recordCachePurgeChannel, records, recordMutex)
 
-	go domainChannelHandler(domainChannel, domains)
-	go domainChannelHandler(recursiveDomainChannel, recursiveDomains)
+	go domainChannelHandler(domainChannel, domains, domainMutex)
+	go domainChannelHandler(recursiveDomainChannel, recursiveDomains, recursiveDomainMutex)
 
 	dp := make(chan bool, 1)
 	populateData(dp)
@@ -159,10 +166,21 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		for range ticker.C {
+			recordMutex.Lock()
 			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
+			recordMutex.Unlock()
+
+			domainMutex.Lock()
 			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
+			domainMutex.Unlock()
+
+			recursiveRecordMutex.Lock()
 			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
+			recursiveRecordMutex.Unlock()
+
+			recursiveDomainMutex.Lock()
 			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
+			recursiveDomainMutex.Unlock()
 		}
 	}()
 
