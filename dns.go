@@ -87,11 +87,13 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	var realDomain Domain
+	domains.Lock()
 	for _, d := range domains.Domains {
 		if topLevelDomain == d.Name {
 			realDomain = d
 		}
 	}
+	domains.Unlock()
 
 	if (Domain{}) == realDomain {
 		debugMsg("Starting recursive lookup")
@@ -109,8 +111,10 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			debugMsg("Recurse domain not found, performing lookup")
 			rr := recurseResolve(domain, "A")
 			for i := range rr {
-				debugMsg("Adding recursive domain to local cache")
+				debugMsg("Adding recurive domain to local cache")
+				recursiveDomains.Lock()
 				rrd := addDomainToCache(topLevelDomain, recursiveDomains, recursiveDomainChannel)
+				recursiveDomains.Unlock()
 				msg.Answer = append(msg.Answer, rr[i])
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
@@ -190,6 +194,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		records.Lock()
 		for i, j := range records.Records {
 			if j.DomainID != realDomain.ID {
+				records.Unlock()
 				continue
 			}
 			if records.Records[i].Name == subdomain {

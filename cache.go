@@ -6,28 +6,22 @@ import (
 )
 
 func recordTTLWatcher(record Record, cachePurgeChan chan<- Record) {
+
 	go func() {
 		debugMsg("[TTL] Starting ttl watcher for cached record")
-
-		timer := time.NewTimer(time.Second)
+		timer := time.NewTimer(time.Duration(record.TTL) * time.Second)
 		defer timer.Stop()
+
 		//ticker := time.NewTicker(time.Second)
 		//defer ticker.Stop()
-	
-		debugMsg("[TTL] Started ttl watcher for cached record")
 
-		for range timer.C {
-			debugMsg("[TTL] Removing record via cache purge channel")
-			cachePurgeChan <- record
-			debugMsg("[TTL] Removed record via cache purge channel")
-			return
-			//if (time.Now().Unix() - record.DOB.Unix()) > record.TTL {
-			//	debugMsg("[TTL] Removing record via cache purge channel")
-			//	cachePurgeChan <- record
-			//	debugMsg("[TTL] Removed record via cache purge channel")
-			//	return
-			//}
-		}
+		debugMsg("[TTL] Started ttl watcher for cached record")
+		<-timer.C
+		debugMsg("[TTL] Removing record via cache purge channel")
+		cachePurgeChan <- record
+		debugMsg("[TTL] Removed record via cache purge channel")
+		return
+
 	}()
 
 }
@@ -36,6 +30,7 @@ func addRecordToCache(record Record, recSlice RecordMap, cacheChan chan<- Record
 	// if record already exists in cache, do nothing
 	recSlice.Lock()
 	if recSlice.Records[record.ID] == record {
+		recSlice.Unlock()
 		return nil
 	}
 	recSlice.Unlock()
@@ -51,18 +46,17 @@ func addRecordToCache(record Record, recSlice RecordMap, cacheChan chan<- Record
 }
 
 func addDomainToCache(domain string, recSlice DomainMap, cacheChan chan<- Domain) Domain {
-	recSlice.Lock()
 	for i := range recSlice.Domains {
 		if recSlice.Domains[i].Name == domain {
-			recSlice.Unlock()
-			return recSlice.Domains[i]
+			d := recSlice.Domains[i]
+			return d
 		}
 	}
-	recSlice.Unlock()
 	domObj := Domain{
 		ID:   int64(len(recSlice.Domains)),
 		Name: domain,
 	}
+
 	debugMsg(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domObj.Name))
 	cacheChan <- domObj
 	debugMsg(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domObj.Name))
