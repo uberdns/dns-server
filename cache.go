@@ -6,19 +6,17 @@ import (
 )
 
 func recordTTLWatcher(record Record, cachePurgeChan chan<- Record) {
-	debugMsg("[TTL] Starting ttl watcher for cached record")
-
-	ticker := time.NewTicker(time.Second)
-       defer ticker.Stop()
-
-	debugMsg("[TTL] Started ttl watcher for cached record")
-
 	go func() {
+		debugMsg("[TTL] Starting ttl watcher for cached record")
+
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+	
+		debugMsg("[TTL] Started ttl watcher for cached record")
 		for range ticker.C {
 			if (time.Now().Unix() - record.DOB.Unix()) > record.TTL {
 				debugMsg("[TTL] Removing record via cache purge channel")
 				cachePurgeChan <- record
-				ticker.Stop()
 				debugMsg("[TTL] Removed record via cache purge channel")
 				return
 			}
