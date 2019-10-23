@@ -168,6 +168,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					}
 				}
 				w.WriteMsg(&msg)
+				recordQueryCounter.WithLabelValues("recurse", "A").Inc()
 
 			} else {
 				debugMsg("Returning cached recursive record")
@@ -181,6 +182,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if err != nil {
 				log.Fatal(err)
 			}
+			recordQueryCounter.WithLabelValues("recurse", "A").Inc()
 		}
 	} else {
 		// Domain matches, we should continue to search
@@ -217,6 +219,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				A:   net.ParseIP(device.IP),
 			})
 		}
+		recordQueryCounter.WithLabelValues("uberdns", "A").Inc()
 	}
 	w.WriteMsg(&msg)
 }
