@@ -51,5 +51,7 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 		log.Fatal(err)
 	}
 
+	recordQueryCounter.WithLabelValues("recurse", recordType).Inc()
+
 	return in.Answer
 }

@@ -33,7 +33,7 @@ func populateData(done chan<- bool) {
 			log.Fatal(err)
 		}
 		debugMsg("Domain found: " + name)
-		domains[int(id)] = Domain{ID: id, Name: name}
+		domains.Domains[int(id)] = Domain{ID: id, Name: name}
 	}
 	log.Println("[DATA] Data populated.")
 

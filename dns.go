@@ -6,7 +6,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -14,14 +13,14 @@ import (
 
 type handler struct{}
 
-func domainChannelHandler(channel <-chan Domain, domSlice map[int]Domain, domSliceMutex sync.RWMutex) {
+func domainChannelHandler(channel <-chan Domain, domSlice DomainMap) {
 	for {
 		select {
 		case msg := <-channel:
 			debugMsg(fmt.Sprintf("[Domain] Adding domain %s to cache", msg.Name))
-			domSliceMutex.Lock()
-			domSlice[int(msg.ID)] = msg
-			domSliceMutex.Unlock()
+			domSlice.Lock()
+			domSlice.Domains[int(msg.ID)] = msg
+			domSlice.Unlock()
 			debugMsg(fmt.Sprintf("[Domain] Added domain %s to cache", msg.Name))
 		}
 	}
@@ -31,7 +30,7 @@ func startListening(protocol string, port int) {
 	srv := &dns.Server{Addr: ":" + strconv.Itoa(port), Net: protocol}
 	srv.Handler = &handler{}
 	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalf("Failed to set tcp listener %s\n", err.Error())
+		log.Fatalf("Failed to set %s listener %s\n", protocol, err.Error())
 	}
 }
 
@@ -61,6 +60,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		for i := range rr {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
+		// Always send response back to client and then do whatever else
 		w.WriteMsg(&msg)
 		return
 	case dns.TypeMX:
@@ -87,7 +87,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	var realDomain Domain
-	for _, d := range domains {
+	for _, d := range domains.Domains {
 		if topLevelDomain == d.Name {
 			realDomain = d
 		}
@@ -97,20 +97,20 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		debugMsg("Starting recursive lookup")
 
 		var recurseDomain Domain
-		recursiveDomainMutex.Lock()
-		for _, d := range recursiveDomains {
+		recursiveDomains.Lock()
+		for _, d := range recursiveDomains.Domains {
 			if topLevelDomain == d.Name {
 				recurseDomain = d
 			}
 		}
-		recursiveDomainMutex.Unlock()
+		recursiveDomains.Unlock()
 
 		if (Domain{}) == recurseDomain {
 			debugMsg("Recurse domain not found, performing lookup")
 			rr := recurseResolve(domain, "A")
 			for i := range rr {
 				debugMsg("Adding recursive domain to local cache")
-				rrd := addDomainToCache(topLevelDomain, recursiveDomains, recursiveDomainMutex, recursiveDomainChannel)
+				rrd := addDomainToCache(topLevelDomain, recursiveDomains, recursiveDomainChannel)
 				msg.Answer = append(msg.Answer, rr[i])
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
@@ -124,27 +124,27 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						DomainID: rrd.ID,
 					}
 
-					recursiveRecordMutex.Lock()
-					rrr.ID = len(recursiveRecords)
-					recursiveRecordMutex.Unlock()
+					recursiveRecords.Lock()
+					rrr.ID = len(recursiveRecords.Records)
+					recursiveRecords.Unlock()
 
-					go addRecordToCache(rrr, recursiveRecords, recursiveRecordMutex, recursiveCacheChannel, recursiveCachePurgeChannel)
+					go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 				}
 			}
 			w.WriteMsg(&msg)
 		} else {
 			debugMsg("Recurse domain found in cache")
 			var device Record
-			recursiveRecordMutex.Lock()
-			for i, j := range recursiveRecords {
+			recursiveRecords.Lock()
+			for i, j := range recursiveRecords.Records {
 				if j.DomainID != recurseDomain.ID {
 					continue
 				}
-				if recursiveRecords[i].Name == subdomain {
-					device = recursiveRecords[i]
+				if recursiveRecords.Records[i].Name == subdomain {
+					device = recursiveRecords.Records[i]
 				}
 			}
-			recursiveRecordMutex.Unlock()
+			recursiveRecords.Unlock()
 
 			if (Record{}) == device {
 				rr := recurseResolve(domain, "A")
@@ -156,7 +156,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					switch rr[i].Header().Rrtype {
 					case dns.TypeA:
 						rrr := Record{
-							ID:       len(recursiveRecords),
+							ID:       len(recursiveRecords.Records),
 							Name:     subdomain,
 							TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 							IP:       rr[i].(*dns.A).A.String(),
@@ -164,7 +164,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 							DOB:      time.Now(),
 							DomainID: recurseDomain.ID,
 						}
-						go addRecordToCache(rrr, recursiveRecords, recursiveRecordMutex, recursiveCacheChannel, recursiveCachePurgeChannel)
+						go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 					}
 				}
 				w.WriteMsg(&msg)
@@ -185,16 +185,16 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	} else {
 		// Domain matches, we should continue to search
 		var device Record
-		recordMutex.Lock()
-		for i, j := range records {
+		records.Lock()
+		for i, j := range records.Records {
 			if j.DomainID != realDomain.ID {
 				continue
 			}
-			if records[i].Name == subdomain {
-				device = records[i]
+			if records.Records[i].Name == subdomain {
+				device = records.Records[i]
 			}
 		}
-		recordMutex.Unlock()
+		records.Unlock()
 
 		if (Record{}) == device {
 			//No existing records found in local cache, perform sql lookup
@@ -205,7 +205,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if (Record{}) != device {
 				log.Println("Non-cached record, adding to cache")
 				device.DOB = time.Now()
-				go addRecordToCache(device, records, recordMutex, recordCacheChannel, recordCachePurgeChannel)
+				go addRecordToCache(device, records, recordCacheChannel, recordCachePurgeChannel)
 			}
 
 		}

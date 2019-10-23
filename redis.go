@@ -26,7 +26,7 @@ func cacheMessageHandler(msg CacheControlMessage) error {
 		//Record cache manage routes
 		switch strings.ToLower(msg.Action) {
 		case "create":
-			addRecordToCache(record, records, recordMutex, recordCacheChannel, recordCachePurgeChannel)
+			addRecordToCache(record, records, recordCacheChannel, recordCachePurgeChannel)
 		case "purge":
 			recordCachePurgeChannel <- record
 		}

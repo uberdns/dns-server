@@ -42,25 +42,30 @@ type Record struct {
 	DomainID int64
 }
 
-var domains = map[int]Domain{}
-var records = map[int]Record{}
+type DomainMap struct {
+	Domains map[int]Domain
+	sync.RWMutex
+}
+
+type RecordMap struct {
+	Records    map[int]Record
+	QueryCount int64
+	sync.RWMutex
+}
+
+var domains DomainMap
+var records RecordMap
 
 var domainChannel = make(chan Domain)
 var recursiveDomainChannel = make(chan Domain)
 
-var recursiveDomains = map[int]Domain{}
-var recursiveRecords = map[int]Record{}
+var recursiveDomains DomainMap
+var recursiveRecords RecordMap
 
 var recordCacheChannel = make(chan Record)
 var recordCachePurgeChannel = make(chan Record)
 var recursiveCacheChannel = make(chan Record)
 var recursiveCachePurgeChannel = make(chan Record)
-
-var domainMutex = sync.RWMutex{}
-var recursiveDomainMutex = sync.RWMutex{}
-
-var recordMutex = sync.RWMutex{}
-var recursiveRecordMutex = sync.RWMutex{}
 
 // DEBUG var used for logging
 var DEBUG = false
@@ -68,6 +73,15 @@ var DEBUG = false
 var redisClient *redis.Client
 var redisCacheChannelName string
 var dbConn sql.DB
+var recordQueryCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "uberdns_record_query_total",
+	},
+	[]string{
+		"type",
+		"query",
+	},
+)
 
 func main() {
 	var (
@@ -89,6 +103,12 @@ func main() {
 			},
 		)
 	)
+
+	domains.Domains = make(map[int]Domain)
+	recursiveDomains.Domains = make(map[int]Domain)
+
+	records.Records = make(map[int]Record)
+	recursiveRecords.Records = make(map[int]Record)
 
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
 	debug := flag.Bool("debug", false, "Toggle debug mode.")
@@ -146,15 +166,16 @@ func main() {
 	go func() {
 		prometheus.MustRegister(recordCacheDepthCounter)
 		prometheus.MustRegister(domainCacheDepthCounter)
+		prometheus.MustRegister(recordQueryCounter)
 		http.Handle("/metrics", promhttp.Handler())
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", prometheusPort), nil))
 	}()
 
-	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords, recursiveRecordMutex)
-	go watchCache(recordCacheChannel, recordCachePurgeChannel, records, recordMutex)
+	go watchCache(recursiveCacheChannel, recursiveCachePurgeChannel, recursiveRecords)
+	go watchCache(recordCacheChannel, recordCachePurgeChannel, records)
 
-	go domainChannelHandler(domainChannel, domains, domainMutex)
-	go domainChannelHandler(recursiveDomainChannel, recursiveDomains, recursiveDomainMutex)
+	go domainChannelHandler(domainChannel, domains)
+	go domainChannelHandler(recursiveDomainChannel, recursiveDomains)
 
 	dp := make(chan bool, 1)
 	populateData(dp)
@@ -164,21 +185,21 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		for range ticker.C {
-			recordMutex.Lock()
-			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records)))
-			recordMutex.Unlock()
+			records.Lock()
+			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records.Records)))
+			records.Unlock()
 
-			domainMutex.Lock()
-			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains)))
-			domainMutex.Unlock()
+			domains.Lock()
+			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains.Domains)))
+			domains.Unlock()
 
-			recursiveRecordMutex.Lock()
-			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords)))
-			recursiveRecordMutex.Unlock()
+			recursiveRecords.Lock()
+			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords.Records)))
+			recursiveRecords.Unlock()
 
-			recursiveDomainMutex.Lock()
-			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains)))
-			recursiveDomainMutex.Unlock()
+			recursiveDomains.Lock()
+			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains.Domains)))
+			recursiveDomains.Unlock()
 		}
 	}()
 

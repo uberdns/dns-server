@@ -19,8 +19,8 @@ func debugDomainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var data = Debug{
-		RecursiveCount:   len(recursiveDomains),
-		RecursiveDomains: recursiveDomains,
+		RecursiveCount:   len(recursiveDomains.Domains),
+		RecursiveDomains: recursiveDomains.Domains,
 	}
 
 	jd, _ := json.Marshal(data)
@@ -33,8 +33,8 @@ func debugRecordHandler(w http.ResponseWriter, r *http.Request) {
 		RecursiveRecords map[int]Record
 	}
 	var data = Debug{
-		RecursiveCount:   len(recursiveRecords),
-		RecursiveRecords: recursiveRecords,
+		RecursiveCount:   len(recursiveRecords.Records),
+		RecursiveRecords: recursiveRecords.Records,
 	}
 
 	jd, _ := json.Marshal(data)
