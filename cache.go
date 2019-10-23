@@ -9,6 +9,7 @@ func recordTTLWatcher(record Record, cachePurgeChan chan<- Record) {
 	debugMsg("[TTL] Starting ttl watcher for cached record")
 
 	ticker := time.NewTicker(time.Second)
+       defer ticker.Stop()
 
 	debugMsg("[TTL] Started ttl watcher for cached record")
 

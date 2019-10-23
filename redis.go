@@ -77,13 +77,13 @@ func redisConnect(redisHost string, redisPassword string, redisDB int) *redis.Cl
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 
-			select {
-			case _ = <-ticker.C:
-				_, err := redisClient.Ping().Result()
-				if err != nil {
-					log.Println("[REDIS] Unable to communicate with " + redisHost)
-				}
+			for range ticker.C {
+			    _, err := redisClient.Ping().Result()
+			    if err != nil {
+			        log.Println("[REDIS] Unable to communicate with " + redisHost)
+			    }
 			}
+
 		}
 	}()
 

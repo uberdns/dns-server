@@ -184,6 +184,7 @@ func main() {
 	// Clean up records that exceed their TTL
 	go func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
+               defer ticker.Stop()
 		for range ticker.C {
 			records.Lock()
 			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records.Records)))
