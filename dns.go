@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,14 @@ func domainChannelHandler(channel <-chan Domain, domSlice map[int]Domain, domSli
 			domSliceMutex.Unlock()
 			debugMsg(fmt.Sprintf("[Domain] Added domain %s to cache", msg.Name))
 		}
+	}
+}
+
+func startListening(protocol string, port int) {
+	srv := &dns.Server{Addr: ":" + strconv.Itoa(port), Net: protocol}
+	srv.Handler = &handler{}
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatalf("Failed to set tcp listener %s\n", err.Error())
 	}
 }
 

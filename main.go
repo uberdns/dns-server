@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/miekg/dns"
 	"gopkg.in/ini.v1"
 )
 
@@ -184,21 +182,8 @@ func main() {
 		}
 	}()
 
-	go func() {
-		srv := &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "tcp"}
-		srv.Handler = &handler{}
-		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to set tcp listener %s\n", err.Error())
-		}
-	}()
-
-	go func() {
-		srv := &dns.Server{Addr: ":" + strconv.Itoa(53), Net: "udp"}
-		srv.Handler = &handler{}
-		if err := srv.ListenAndServe(); err != nil {
-			log.Fatalf("Failed to set udp listener %s\n", err.Error())
-		}
-	}()
+	go startListening("tcp", 53)
+	go startListening("udp", 53)
 
 	sig := make(chan os.Signal)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
