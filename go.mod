@@ -1,4 +1,4 @@
-module gitlab.com/lsoftop/dns-server
+module github.com/uberdns/dns-server
 
 go 1.13
 

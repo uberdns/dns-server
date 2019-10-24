@@ -27,7 +27,7 @@ func TestPopulateData(*testing.T) {
 
 	testRecords = append(testRecords, testRecord)
 
-	if len(domains) != 0 && len(records) != 0 {
+	if len(testDomains) != 0 && len(testRecords) != 0 {
 		return
 	}
 }
