@@ -69,7 +69,7 @@ func (d *DomainMap) Contains(domain Domain) bool {
 	return false
 }
 
-func (d *DomainMap) Sum() int {
+func (d *DomainMap) Count() int {
 	var i int
 	d.mu.Lock()
 	i = len(d.Domains)
@@ -137,7 +137,7 @@ func (r *RecordMap) DeleteRecord(record Record) {
 	r.mu.Unlock()
 }
 
-func (r *RecordMap) Sum() int {
+func (r *RecordMap) Count() int {
 	var i int
 	r.mu.Lock()
 	i = len(r.Records)
@@ -240,7 +240,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		if (Domain{}) == recurseDomain {
 			debugMsg("Recurse domain not found, performing lookup")
 			domObj := Domain{
-				ID:   int64(recursiveDomains.Sum()),
+				ID:   int64(recursiveDomains.Count()),
 				Name: topLevelDomain,
 			}
 			rr := recurseResolve(domain, "A")
@@ -260,7 +260,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						DomainID: domObj.ID,
 					}
 
-					rrr.ID = recursiveRecords.Sum()
+					rrr.ID = recursiveRecords.Count()
 
 					recursiveRecords.mu.Lock()
 					copyr := recursiveRecords
@@ -284,7 +284,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					switch rr[i].Header().Rrtype {
 					case dns.TypeA:
 						rrr := Record{
-							ID:       recursiveRecords.Sum(),
+							ID:       recursiveRecords.Count(),
 							Name:     subdomain,
 							TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 							IP:       rr[i].(*dns.A).A.String(),

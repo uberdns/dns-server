@@ -191,13 +191,13 @@ func main() {
 		defer ticker.Stop()
 		for range ticker.C {
 
-			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(records.Sum()))
+			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(records.Count()))
 
-			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(domains.Sum()))
+			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(domains.Count()))
 
-			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveRecords.Sum()))
+			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveRecords.Count()))
 
-			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveDomains.Sum()))
+			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveDomains.Count()))
 
 		}
 	}()
