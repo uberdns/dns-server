@@ -199,7 +199,6 @@ func main() {
 
 			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveDomains.Sum()))
 
-			return
 		}
 	}()
 
