@@ -11,6 +11,64 @@ import (
 	"github.com/miekg/dns"
 )
 
+func (d *DomainMap) GetDomains() map[int]Domain {
+	var domains = make(map[int]Domain)
+	d.mu.Lock()
+	domains = d.Domains
+	d.mu.Unlock()
+
+	return domains
+}
+
+func (d *DomainMap) AddDomain(domain Domain) {
+	d.mu.Lock()
+	d.Domains[int(domain.ID)] = domain
+	d.mu.Unlock()
+}
+
+func (d *DomainMap) DeleteDomain(domain Domain) {
+	d.mu.Lock()
+	delete(d.Domains, int(domain.ID))
+	d.mu.Unlock()
+}
+
+func (d *DomainMap) Sum() int {
+	var i int
+	d.mu.Lock()
+	i = len(d.Domains)
+	d.mu.Unlock()
+	return i
+}
+
+func (r *RecordMap) GetRecords() map[int]Record {
+	var records = make(map[int]Record)
+	r.mu.Lock()
+	records = r.Records
+	r.mu.Unlock()
+
+	return records
+}
+
+func (r *RecordMap) AddRecord(record Record) {
+	r.mu.Lock()
+	r.Records[record.ID] = record
+	r.mu.Unlock()
+}
+
+func (r *RecordMap) DeleteRecord(record Record) {
+	r.mu.Lock()
+	delete(r.Records, record.ID)
+	r.mu.Unlock()
+}
+
+func (r *RecordMap) Sum() int {
+	var i int
+	r.mu.Lock()
+	i = len(r.Records)
+	r.mu.Unlock()
+	return i
+}
+
 type handler struct{}
 
 func domainChannelHandler(channel <-chan Domain, domSlice DomainMap) {
@@ -18,9 +76,7 @@ func domainChannelHandler(channel <-chan Domain, domSlice DomainMap) {
 		select {
 		case msg := <-channel:
 			debugMsg(fmt.Sprintf("[Domain] Adding domain %s to cache", msg.Name))
-			domSlice.Lock()
-			domSlice.Domains[int(msg.ID)] = msg
-			domSlice.Unlock()
+			domSlice.AddDomain(msg)
 			debugMsg(fmt.Sprintf("[Domain] Added domain %s to cache", msg.Name))
 		}
 	}
@@ -87,34 +143,30 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 
 	var realDomain Domain
-	domains.Lock()
-	for _, d := range domains.Domains {
+	copyDomains := domains.GetDomains()
+	for _, d := range copyDomains {
 		if topLevelDomain == d.Name {
 			realDomain = d
 		}
 	}
-	domains.Unlock()
 
 	if (Domain{}) == realDomain {
 		debugMsg("Starting recursive lookup")
 
 		var recurseDomain Domain
-		recursiveDomains.Lock()
-		for _, d := range recursiveDomains.Domains {
+		copyDomains := recursiveDomains.GetDomains()
+		for _, d := range copyDomains {
 			if topLevelDomain == d.Name {
 				recurseDomain = d
 			}
 		}
-		recursiveDomains.Unlock()
 
 		if (Domain{}) == recurseDomain {
 			debugMsg("Recurse domain not found, performing lookup")
 			rr := recurseResolve(domain, "A")
 			for i := range rr {
 				debugMsg("Adding recurive domain to local cache")
-				recursiveDomains.Lock()
 				rrd := addDomainToCache(topLevelDomain, recursiveDomains, recursiveDomainChannel)
-				recursiveDomains.Unlock()
 				msg.Answer = append(msg.Answer, rr[i])
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
@@ -128,27 +180,28 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						DomainID: rrd.ID,
 					}
 
-					recursiveRecords.Lock()
-					rrr.ID = len(recursiveRecords.Records)
-					recursiveRecords.Unlock()
+					rrr.ID = len(recursiveRecords.GetRecords())
 
-					go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
+					recursiveRecords.mu.Lock()
+					copyr := recursiveRecords
+					recursiveRecords.mu.Unlock()
+
+					go addRecordToCache(rrr, copyr, recursiveCacheChannel, recursiveCachePurgeChannel)
 				}
 			}
 			w.WriteMsg(&msg)
 		} else {
 			debugMsg("Recurse domain found in cache")
 			var device Record
-			recursiveRecords.Lock()
-			for i, j := range recursiveRecords.Records {
+			copyRecords := recursiveRecords.GetRecords()
+			for i, j := range copyRecords {
 				if j.DomainID != recurseDomain.ID {
 					continue
 				}
-				if recursiveRecords.Records[i].Name == subdomain {
-					device = recursiveRecords.Records[i]
+				if copyRecords[i].Name == subdomain {
+					device = copyRecords[i]
 				}
 			}
-			recursiveRecords.Unlock()
 
 			if (Record{}) == device {
 				rr := recurseResolve(domain, "A")
@@ -191,17 +244,15 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	} else {
 		// Domain matches, we should continue to search
 		var device Record
-		records.Lock()
-		for i, j := range records.Records {
+		copyRecords := records.GetRecords()
+		for i, j := range copyRecords {
 			if j.DomainID != realDomain.ID {
-				records.Unlock()
 				continue
 			}
-			if records.Records[i].Name == subdomain {
-				device = records.Records[i]
+			if copyRecords[i].Name == subdomain {
+				device = copyRecords[i]
 			}
 		}
-		records.Unlock()
 
 		if (Record{}) == device {
 			//No existing records found in local cache, perform sql lookup

@@ -44,13 +44,13 @@ type Record struct {
 
 type DomainMap struct {
 	Domains map[int]Domain
-	sync.RWMutex
+	mu      *sync.Mutex
 }
 
 type RecordMap struct {
 	Records    map[int]Record
 	QueryCount int64
-	sync.RWMutex
+	mu         *sync.Mutex
 }
 
 var domains DomainMap
@@ -105,10 +105,14 @@ func main() {
 	)
 
 	domains.Domains = make(map[int]Domain)
+	domains.mu = new(sync.Mutex)
 	recursiveDomains.Domains = make(map[int]Domain)
+	recursiveDomains.mu = new(sync.Mutex)
 
 	records.Records = make(map[int]Record)
+	records.mu = new(sync.Mutex)
 	recursiveRecords.Records = make(map[int]Record)
+	recursiveRecords.mu = new(sync.Mutex)
 
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
 	debug := flag.Bool("debug", false, "Toggle debug mode.")
@@ -186,21 +190,16 @@ func main() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			records.Lock()
-			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(records.Records)))
-			records.Unlock()
 
-			domains.Lock()
-			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(len(domains.Domains)))
-			domains.Unlock()
+			recordCacheDepthCounter.WithLabelValues("uberdns").Set(float64(records.Sum()))
 
-			recursiveRecords.Lock()
-			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveRecords.Records)))
-			recursiveRecords.Unlock()
+			domainCacheDepthCounter.WithLabelValues("uberdns").Set(float64(domains.Sum()))
 
-			recursiveDomains.Lock()
-			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(len(recursiveDomains.Domains)))
-			recursiveDomains.Unlock()
+			recordCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveRecords.Sum()))
+
+			domainCacheDepthCounter.WithLabelValues("recurse").Set(float64(recursiveDomains.Sum()))
+
+			return
 		}
 	}()
 
