@@ -22,10 +22,10 @@ func recordTTLWatcher(record Record, cachePurgeChan chan<- Record) {
 
 func addRecordToCache(record Record, recSlice RecordMap, cacheChan chan<- Record, cachePurgeChan chan<- Record) error {
 	// if record already exists in cache, do nothing
-	r := recSlice.GetRecords()
-	if r[record.ID] == record {
+	if recSlice.Contains(record) {
 		return nil
 	}
+
 	debugMsg("[CACHE] Adding record to cache channel")
 	record.DOB = time.Now()
 	//recSlice[record.ID] = record
@@ -37,23 +37,15 @@ func addRecordToCache(record Record, recSlice RecordMap, cacheChan chan<- Record
 	return nil
 }
 
-func addDomainToCache(domain string, recSlice DomainMap, cacheChan chan<- Domain) Domain {
-	d := recSlice.GetDomains()
-	for i := range d {
-		if d[i].Name == domain {
-			rd := d[i]
-			return rd
-		}
-	}
-	domObj := Domain{
-		ID:   int64(len(d)),
-		Name: domain,
+func addDomainToCache(domain Domain, recSlice DomainMap, cacheChan chan<- Domain) error {
+	if recSlice.Contains(domain) {
+		return nil
 	}
 
-	debugMsg(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domObj.Name))
-	cacheChan <- domObj
-	debugMsg(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domObj.Name))
-	return domObj
+	debugMsg(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domain.Name))
+	cacheChan <- domain
+	debugMsg(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domain.Name))
+	return nil
 }
 
 func watchCache(cacheChan <-chan Record, cachePurgeChan <-chan Record, recSlice RecordMap) {

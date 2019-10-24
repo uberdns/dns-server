@@ -20,6 +20,30 @@ func (d *DomainMap) GetDomains() map[int]Domain {
 	return domains
 }
 
+func (d *DomainMap) GetDomainByID(id int) Domain {
+	var domain Domain
+	d.mu.Lock()
+	domain = d.Domains[id]
+	d.mu.Unlock()
+
+	return domain
+}
+
+func (d *DomainMap) GetDomainByName(name string) Domain {
+	var domains = make(map[int]Domain)
+	d.mu.Lock()
+	domains = d.Domains
+	d.mu.Unlock()
+
+	for i := range domains {
+		if domains[i].Name == name {
+			return domains[i]
+		}
+	}
+
+	return Domain{}
+}
+
 func (d *DomainMap) AddDomain(domain Domain) {
 	d.mu.Lock()
 	d.Domains[int(domain.ID)] = domain
@@ -30,6 +54,19 @@ func (d *DomainMap) DeleteDomain(domain Domain) {
 	d.mu.Lock()
 	delete(d.Domains, int(domain.ID))
 	d.mu.Unlock()
+}
+
+func (d *DomainMap) Contains(domain Domain) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	for i := range d.Domains {
+		if d.Domains[i].ID == domain.ID {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (d *DomainMap) Sum() int {
@@ -47,6 +84,45 @@ func (r *RecordMap) GetRecords() map[int]Record {
 	r.mu.Unlock()
 
 	return records
+}
+
+func (r *RecordMap) GetRecordByID(id int) Record {
+	var record Record
+	r.mu.Lock()
+	record = r.Records[id]
+	r.mu.Unlock()
+
+	return record
+}
+
+func (r *RecordMap) GetRecordByName(name string, domainId int64) Record {
+	var record Record
+	r.mu.Lock()
+	for i := range r.Records {
+		if r.Records[i].DomainID != domainId {
+			continue
+		}
+
+		if r.Records[i].Name == name {
+			record = r.Records[i]
+		}
+	}
+	r.mu.Unlock()
+
+	return record
+}
+
+func (r *RecordMap) Contains(record Record) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range r.Records {
+		if r.Records[i].Name == record.Name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *RecordMap) AddRecord(record Record) {
@@ -163,10 +239,14 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 		if (Domain{}) == recurseDomain {
 			debugMsg("Recurse domain not found, performing lookup")
+			domObj := Domain{
+				ID:   int64(recursiveDomains.Sum()),
+				Name: topLevelDomain,
+			}
 			rr := recurseResolve(domain, "A")
 			for i := range rr {
 				debugMsg("Adding recurive domain to local cache")
-				rrd := addDomainToCache(topLevelDomain, recursiveDomains, recursiveDomainChannel)
+				addDomainToCache(domObj, recursiveDomains, recursiveDomainChannel)
 				msg.Answer = append(msg.Answer, rr[i])
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
@@ -177,10 +257,10 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 						TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 						Created:  time.Now(),
 						DOB:      time.Now(),
-						DomainID: rrd.ID,
+						DomainID: domObj.ID,
 					}
 
-					rrr.ID = len(recursiveRecords.GetRecords())
+					rrr.ID = recursiveRecords.Sum()
 
 					recursiveRecords.mu.Lock()
 					copyr := recursiveRecords
@@ -192,16 +272,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			w.WriteMsg(&msg)
 		} else {
 			debugMsg("Recurse domain found in cache")
-			var device Record
-			copyRecords := recursiveRecords.GetRecords()
-			for i, j := range copyRecords {
-				if j.DomainID != recurseDomain.ID {
-					continue
-				}
-				if copyRecords[i].Name == subdomain {
-					device = copyRecords[i]
-				}
-			}
+			var device = recursiveRecords.GetRecordByName(subdomain, recurseDomain.ID)
 
 			if (Record{}) == device {
 				rr := recurseResolve(domain, "A")
@@ -213,7 +284,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					switch rr[i].Header().Rrtype {
 					case dns.TypeA:
 						rrr := Record{
-							ID:       len(recursiveRecords.Records),
+							ID:       recursiveRecords.Sum(),
 							Name:     subdomain,
 							TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 							IP:       rr[i].(*dns.A).A.String(),
