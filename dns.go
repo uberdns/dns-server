@@ -61,7 +61,13 @@ func (d *DomainMap) Contains(domain Domain) bool {
 	defer d.mu.Unlock()
 
 	for i := range d.Domains {
+		// return if id match
 		if d.Domains[i].ID == domain.ID {
+			return true
+		}
+		// if id doesnt match, this is a problem but we should still
+		// return that the map contains the domain
+		if d.Domains[i].Name == domain.Name {
 			return true
 		}
 	}
@@ -230,11 +236,9 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		debugMsg("Starting recursive lookup")
 
 		var recurseDomain Domain
-		copyDomains := recursiveDomains.GetDomains()
-		for _, d := range copyDomains {
-			if topLevelDomain == d.Name {
-				recurseDomain = d
-			}
+		realDomain.Name = topLevelDomain
+		if recursiveDomains.Contains(realDomain) {
+			recurseDomain = recursiveDomains.GetDomainByName(topLevelDomain)
 		}
 
 		if (Domain{}) == recurseDomain {
