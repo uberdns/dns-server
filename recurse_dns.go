@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"time"
+	"fmt"
 
 	"github.com/miekg/dns"
 )
@@ -40,11 +41,13 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 	in, _, err := c.Exchange(msg, "1.1.1.1:53")
 
 	if err, ok := err.(net.Error); ok && err.Timeout() {
-		debugMsg("Connection to upstream DNS timed out, retrying...")
+		fmt.Println("Connection to upstream DNS timed out, retrying...")
 		in, _, nerr := c.Exchange(msg, "1.1.1.1:53")
 		if nerr != nil {
-			debugMsg("Retry of upstream DNS timed out again. Fatal error.")
-			log.Fatal(err)
+			fmt.Println("Retry of upstream DNS timed out again. Fatal error.")
+			fmt.Println(err.Error)
+			return []dns.RR{}
+			//log.Fatal(err)
 		}
 		return in.Answer
 	} else if err != nil {
