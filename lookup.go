@@ -3,24 +3,26 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 func populateData(done chan<- bool) {
 	log.Println("[DATA] Populating data.")
 	query := "SELECT id, name FROM dns_domain"
-	debugMsg("Query: " + query)
+	log.Info("Query: " + query)
 	dq, err := dbConn.Prepare(query)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return
 	}
 
 	defer dq.Close()
 
 	rows, err := dq.Query()
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return
 	}
 
 	for rows.Next() {
@@ -30,9 +32,9 @@ func populateData(done chan<- bool) {
 		)
 
 		if err := rows.Scan(&id, &name); err != nil {
-			log.Fatal(err)
+			log.Error(err)
 		}
-		debugMsg("Domain found: " + name)
+		log.Info("Domain found: " + name)
 		domains.Domains[int(id)] = Domain{ID: id, Name: name}
 	}
 	log.Println("[DATA] Data populated.")
@@ -45,20 +47,20 @@ func getDomain(domainName string) (Domain, error) {
 
 	query := "SELECT id FROM dns_domain WHERE name = ?"
 	dq, err := dbConn.Prepare(query)
-	debugMsg("Query: " + query)
+	log.Info("Query: " + query)
 
 	if err != nil {
-		panic(err.Error())
+		log.Error(err)
 	}
 
 	defer dq.Close()
 
 	err = dq.QueryRow(domainName).Scan(&domain.ID)
 	if err != nil {
-		panic(err.Error())
+		log.Error(err)
 	}
 	domain.Name = domainName
-	debugMsg(fmt.Sprintf("Found domain ID %d", domain.ID))
+	log.Info(fmt.Sprintf("Found domain ID %d", domain.ID))
 
 	return domain, nil
 }
@@ -68,10 +70,10 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 
 	query := "SELECT id, name, ip_address, ttl, domain_id FROM dns_record WHERE name = ? AND domain_id = ?"
 	dq, err := dbConn.Prepare(query)
-	debugMsg("Query: " + query)
+	log.Info("Query: " + query)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 
 	defer dq.Close()
@@ -81,7 +83,7 @@ func getRecordFromHost(host string, domainID int64) (Record, error) {
 		if err == sql.ErrNoRows {
 			log.Println("Lookup failed but domain was valid.")
 		} else {
-			log.Fatal(err)
+			log.Error(err)
 		}
 	}
 

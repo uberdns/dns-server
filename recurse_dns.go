@@ -1,10 +1,10 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
-	"fmt"
 
 	"github.com/miekg/dns"
 )
@@ -44,14 +44,14 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 		fmt.Println("Connection to upstream DNS timed out, retrying...")
 		in, _, nerr := c.Exchange(msg, "1.1.1.1:53")
 		if nerr != nil {
-			fmt.Println("Retry of upstream DNS timed out again. Fatal error.")
-			fmt.Println(err.Error)
+			log.Error("Retry of upstream DNS timed out again. Fatal error.")
+			log.Error(err.Error())
 			return []dns.RR{}
 			//log.Fatal(err)
 		}
 		return in.Answer
 	} else if err != nil {
-		log.Fatal(err)
+		log.Error(err.Error())
 	}
 
 	recordQueryCounter.WithLabelValues("recurse", recordType).Inc()

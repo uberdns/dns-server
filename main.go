@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +22,8 @@ import (
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"gopkg.in/ini.v1"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Domain - struct for storing information regarding domains
@@ -138,6 +139,21 @@ func main() {
 
 	prometheusPort := cfg.Section("dns").Key("prometheus_port").String()
 	pprofPort, _ := cfg.Section("dns").Key("pprof_port").Int()
+	logFilename := cfg.Section("dns").Key("log_file").String()
+
+	// Start logger
+	logFile, err := os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+
+	formatter := new(log.TextFormatter)
+	formatter.FullTimestamp = true
+
+	log.SetFormatter(formatter)
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		log.SetOutput(logFile)
+	}
+
 	// Start pprof
 	go func() {
 		r := http.NewServeMux()
@@ -156,7 +172,7 @@ func main() {
 
 	err = dbConnect(dbUser, dbPass, dbHost, dbPort, dbName)
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err.Error())
 	}
 
 	redisClient = redisConnect(redisHost, redisPassword, redisDB)

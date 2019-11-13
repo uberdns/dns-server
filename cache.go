@@ -3,19 +3,21 @@ package main
 import (
 	"fmt"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func recordTTLWatcher(record Record, cachePurgeChan chan<- Record) {
 
-	debugMsg("[TTL] Starting ttl watcher for cached record")
+	log.Info("[TTL] Starting ttl watcher for cached record")
 	timer := time.NewTimer(time.Duration(record.TTL) * time.Second)
 	defer timer.Stop()
 
-	debugMsg("[TTL] Started ttl watcher for cached record")
+	log.Info("[TTL] Started ttl watcher for cached record")
 	<-timer.C
-	debugMsg("[TTL] Removing record via cache purge channel")
+	log.Info("[TTL] Removing record via cache purge channel")
 	cachePurgeChan <- record
-	debugMsg("[TTL] Removed record via cache purge channel")
+	log.Info("[TTL] Removed record via cache purge channel")
 	return
 
 }
@@ -26,11 +28,11 @@ func addRecordToCache(record Record, recSlice RecordMap, cacheChan chan<- Record
 		return nil
 	}
 
-	debugMsg("[CACHE] Adding record to cache channel")
+	log.Info("[CACHE] Adding record to cache channel")
 	record.DOB = time.Now()
 	//recSlice[record.ID] = record
 	cacheChan <- record
-	debugMsg("[CACHE] Added record to cache channel")
+	log.Info("[CACHE] Added record to cache channel")
 
 	go recordTTLWatcher(record, cachePurgeChan)
 
@@ -42,9 +44,9 @@ func addDomainToCache(domain Domain, recSlice DomainMap, cacheChan chan<- Domain
 		return nil
 	}
 
-	debugMsg(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domain.Name))
+	log.Info(fmt.Sprintf("[CACHE] Adding domain %s to cache channel", domain.Name))
 	cacheChan <- domain
-	debugMsg(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domain.Name))
+	log.Info(fmt.Sprintf("[CACHE] Added domain %s to cache channel", domain.Name))
 	return nil
 }
 
@@ -52,14 +54,14 @@ func watchCache(cacheChan <-chan Record, cachePurgeChan <-chan Record, recSlice 
 	for {
 		select {
 		case msg := <-cacheChan:
-			debugMsg(fmt.Sprint("Record received over cache channel: ", msg))
-			debugMsg("[CACHE] Adding record to slice")
+			log.Info(fmt.Sprint("Record received over cache channel: ", msg))
+			log.Info("[CACHE] Adding record to slice")
 			recSlice.AddRecord(msg)
-			debugMsg("[CACHE] Added record to slice")
+			log.Info("[CACHE] Added record to slice")
 		case msg := <-cachePurgeChan:
-			debugMsg("[CACHE] Removing record from slice")
+			log.Info("[CACHE] Removing record from slice")
 			recSlice.DeleteRecord(msg)
-			debugMsg("[CACHE] Removed record from slice")
+			log.Info("[CACHE] Removed record from slice")
 		}
 	}
 }

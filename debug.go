@@ -2,13 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
 func debugMsg(msg string) {
 	if DEBUG {
-		log.Println("[DEBUG] " + msg)
+		log.Info("[DEBUG] " + msg)
 	}
 }
 
