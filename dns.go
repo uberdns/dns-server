@@ -197,36 +197,12 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		topLevelDomain = cleanDomain
 	}
 
-	switch r.Question[0].Qtype {
-	case dns.TypeTXT:
-		rr := recurseResolve(msg.Question[0].Name, "TXT")
+	// Currently we only cache A records, if the question is of a non-A type - default to recursiveResolve lookup
+	if r.Question[0].Qtype != dns.TypeA {
+		rr := recurseResolve(msg.Question[0].Name, r.Question[0].Qtype)
 		for i := range rr {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
-		// Always send response back to client and then do whatever else
-		w.WriteMsg(&msg)
-		return
-	case dns.TypeMX:
-		rr := recurseResolve(msg.Question[0].Name, "MX")
-		for i := range rr {
-			msg.Answer = append(msg.Answer, rr[i])
-		}
-		w.WriteMsg(&msg)
-		return
-	case dns.TypeAAAA:
-		rr := recurseResolve(msg.Question[0].Name, "AAAA")
-		for i := range rr {
-			msg.Answer = append(msg.Answer, rr[i])
-		}
-		w.WriteMsg(&msg)
-		return
-	case dns.TypeCNAME:
-		rr := recurseResolve(msg.Question[0].Name, "CNAME")
-		for i := range rr {
-			msg.Answer = append(msg.Answer, rr[i])
-		}
-		w.WriteMsg(&msg)
-		return
 	}
 
 	logger("dns").Debug(fmt.Sprintf("Query received: %s", msg.Question[0].Name))
@@ -254,7 +230,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				ID:   int64(recursiveDomains.Count()),
 				Name: topLevelDomain,
 			}
-			rr := recurseResolve(domain, "A")
+			rr := recurseResolve(domain, r.Question[0].Qtype)
 			for i := range rr {
 				logger("recurse_dns").Debug("Adding recurive domain to local cache")
 				addDomainToCache(domObj, recursiveDomains, recursiveDomainChannel)
@@ -286,7 +262,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			var device = recursiveRecords.GetRecordByName(subdomain, recurseDomain.ID)
 
 			if (Record{}) == device {
-				rr := recurseResolve(domain, "A")
+				rr := recurseResolve(domain, r.Question[0].Qtype)
 
 				logger("recurse_dns").Debug("Recurse record not found in cache, performing lookup")
 
@@ -324,7 +300,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			recordQueryCounter.WithLabelValues("recurse", "A").Inc()
 		}
 	} else {
-		
+
 		// Domain matches, we should continue to search
 		var device Record
 		copyRecords := records.GetRecords()
@@ -362,10 +338,10 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	}
 	// Cached dns record
 	w.WriteMsg(&msg)
-	
+
 	timeStop := time.Now()
 	log.WithFields(log.Fields{
-		"service": "dns",
+		"service":    "dns",
 		"query_time": timeStop.Sub(timeStart).Seconds(),
 	}).Info(fmt.Sprintf("Query: %s", domain))
 }
