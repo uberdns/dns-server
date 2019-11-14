@@ -1,8 +1,8 @@
 package main
 
 import (
+	"fmt"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
 
@@ -48,10 +48,10 @@ func cacheMessageHandler(msg CacheControlMessage) error {
 // Watch for redis messages in the cache purge channel
 // when one comes in, remove the record from the cache
 func watchCacheChannel(rdc *redis.Client, cacheChannel string) {
-	log.Info("[REDIS] Subscribing to %s", cacheChannel)
+	logger("redis").Debug(fmt.Sprintf("Subscribing to %s", cacheChannel))
 	pubsub := rdc.Subscribe(cacheChannel)
 	defer pubsub.Close()
-	log.Info("[REDIS] Watching for cache management messages...")
+	logger("redis").Debug("Watching for cache management messages...")
 	ch := pubsub.Channel()
 
 	for msg := range ch {
@@ -80,7 +80,7 @@ func redisConnect(redisHost string, redisPassword string, redisDB int) *redis.Cl
 			for range ticker.C {
 				_, err := redisClient.Ping().Result()
 				if err != nil {
-					log.Error("[REDIS] Unable to communicate with " + redisHost)
+					logger("redis").Error("Unable to communicate with " + redisHost)
 				}
 			}
 

@@ -4,6 +4,7 @@
 package main
 
 import (
+	"strings"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -71,6 +72,7 @@ var recursiveCachePurgeChannel = make(chan Record)
 // DEBUG var used for logging
 var DEBUG = false
 
+var upstream_servers []string
 var redisClient *redis.Client
 var redisCacheChannelName string
 var dbConn sql.DB
@@ -116,10 +118,7 @@ func main() {
 	recursiveRecords.mu = new(sync.Mutex)
 
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
-	debug := flag.Bool("debug", false, "Toggle debug mode.")
 	flag.Parse()
-
-	DEBUG = *debug
 
 	cfg, err := ini.Load(*cfgFile)
 	if err != nil {
@@ -140,18 +139,23 @@ func main() {
 	prometheusPort := cfg.Section("dns").Key("prometheus_port").String()
 	pprofPort, _ := cfg.Section("dns").Key("pprof_port").Int()
 	logFilename := cfg.Section("dns").Key("log_file").String()
+	DEBUG, _ = cfg.Section("dns").Key("debug").Bool()
+
+	upstreamServerList := cfg.Section("dns").Key("upstream_servers").String()
+	upstream_servers = strings.Split(upstreamServerList, ",")
 
 	// Start logger
 	logFile, err := os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 
-	formatter := new(log.TextFormatter)
-	formatter.FullTimestamp = true
-
-	log.SetFormatter(formatter)
+	log.SetFormatter(&log.JSONFormatter{})
 	if err != nil {
 		log.Fatal(err)
 	} else {
 		log.SetOutput(logFile)
+	}
+
+	if DEBUG { 
+		log.SetLevel(log.DebugLevel)
 	}
 
 	// Start pprof

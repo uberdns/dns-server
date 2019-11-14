@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"net"
 	"time"
 
 	"github.com/miekg/dns"
@@ -35,26 +33,45 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 	}
 
 	msg.Question[0] = dns.Question{fqdn, recordTypeConst, dns.ClassINET}
+	var answer []dns.RR
 
-	c := new(dns.Client)
-	c.Timeout = time.Duration(2 * time.Second)
-	in, _, err := c.Exchange(msg, "1.1.1.1:53")
+	for i := range upstream_servers {
+		c := new(dns.Client)
+		c.Timeout = time.Duration(2 * time.Second)
+		sockPath := fmt.Sprintf("%s:53", upstream_servers[i])
+		in, _, err := c.Exchange(msg, sockPath)
 
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		fmt.Println("Connection to upstream DNS timed out, retrying...")
-		in, _, nerr := c.Exchange(msg, "1.1.1.1:53")
-		if nerr != nil {
-			log.Error("Retry of upstream DNS timed out again. Fatal error.")
-			log.Error(err.Error())
-			return []dns.RR{}
-			//log.Fatal(err)
+		if err != nil {
+			logger("recurse_dns").Error(err.Error())
+			logger("recurse_dns").Infof("Retrying lookup due to failed upstream lookup on server %s", sockPath)
+			continue
 		}
-		return in.Answer
-	} else if err != nil {
-		log.Error(err.Error())
+		answer = in.Answer
 	}
 
 	recordQueryCounter.WithLabelValues("recurse", recordType).Inc()
+	return answer
 
-	return in.Answer
+//	c := new(dns.Client)
+//	c.Timeout = time.Duration(2 * time.Second)
+//	in, _, err := c.Exchange(msg, "1.1.1.1:53")
+
+//	if err, ok := err.(net.Error); ok && err.Timeout() {
+//		log.Error(err.Error())
+//		log.Info("Retrying lookup due to upstream timeout")
+//		in, _, nerr := c.Exchange(msg, "1.1.1.1:53")
+//		if nerr != nil {
+//			log.Error("Retry of upstream DNS timed out again. Fatal error.")
+//			log.Error(err.Error())
+//			return []dns.RR{}
+//			//log.Fatal(err)
+//		}
+//		return in.Answer
+//	} else if err != nil {
+//		log.Error(err.Error())
+//	}
+
+	//recordQueryCounter.WithLabelValues("recurse", recordType).Inc()
+
+	//return in.Answer
 }
