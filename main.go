@@ -238,7 +238,12 @@ func main() {
 	s := <-sig
 	switch s {
 	case syscall.SIGHUP:
-		fmt.Println("SIGHUP called")
+		fmt.Println("SIGHUP called, rotating logs")
+
+		if err := logFile.Close(); err != nil {
+			log.Fatal(err)
+		}
+		logFile, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	case syscall.SIGINT, syscall.SIGTERM:
 		log.Fatalf("Signal (%v) received, stopping\n", s)
 	default:
