@@ -197,6 +197,8 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		topLevelDomain = cleanDomain
 	}
 
+	logger("dns").Debug(fmt.Sprintf("Query received: %s", msg.Question[0].Name))
+
 	// Currently we only cache A records, if the question is of a non-A type - default to recursiveResolve lookup
 	if r.Question[0].Qtype != dns.TypeA {
 		rr := recurseResolve(msg.Question[0].Name, r.Question[0].Qtype)
@@ -204,8 +206,6 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			msg.Answer = append(msg.Answer, rr[i])
 		}
 	}
-
-	logger("dns").Debug(fmt.Sprintf("Query received: %s", msg.Question[0].Name))
 
 	var realDomain Domain
 	copyDomains := domains.GetDomains()
@@ -341,7 +341,10 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 
 	timeStop := time.Now()
 	log.WithFields(log.Fields{
-		"service":    "dns",
-		"query_time": timeStop.Sub(timeStart).Seconds(),
+		"service":     "dns",
+		"query_time":  timeStop.Sub(timeStart).Seconds(),
+		"query_type":  dns.TypeToString[r.Question[0].Qtype],
+		"local_addr":  w.LocalAddr().String(),
+		"remote_addr": w.RemoteAddr().String(),
 	}).Info(fmt.Sprintf("Query: %s", domain))
 }
