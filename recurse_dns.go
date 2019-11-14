@@ -35,7 +35,7 @@ func recurseResolve(fqdn string, recordType uint16) []dns.RR {
 		if err != nil {
 			logger("recurse_dns").Error(err.Error())
 
-			logger("recurse_dns").Infof("Retrying lookup due to failed upstream lookup on server %s", sockPath)
+			logger("recurse_dns").Errorf("Retrying lookup due to failed upstream lookup on server %s", sockPath)
 			continue
 		}
 		answer = in.Answer
