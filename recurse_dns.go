@@ -5,9 +5,13 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func recurseResolve(fqdn string, recordType string) []dns.RR {
+	timeStart := time.Now()
+
 	if string(fqdn[len(fqdn)-1]) != "." {
 		fqdn = fqdn + "."
 	}
@@ -35,6 +39,8 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 	msg.Question[0] = dns.Question{fqdn, recordTypeConst, dns.ClassINET}
 	var answer []dns.RR
 
+	var upstreamWinner string
+
 	for i := range upstream_servers {
 		c := new(dns.Client)
 		c.Timeout = time.Duration(2 * time.Second)
@@ -43,12 +49,21 @@ func recurseResolve(fqdn string, recordType string) []dns.RR {
 
 		if err != nil {
 			logger("recurse_dns").Error(err.Error())
+
 			logger("recurse_dns").Infof("Retrying lookup due to failed upstream lookup on server %s", sockPath)
 			continue
 		}
 		answer = in.Answer
+		upstreamWinner = upstream_servers[i]
 	}
 
+	timeStop := time.Now()
+
+	log.WithFields(log.Fields{
+		"service": "recurse_dns",
+		"query_time": timeStop.Sub(timeStart).Seconds(),
+		"resolver": upstreamWinner,
+	}).Info(fmt.Sprintf("Query: %s", fqdn))
 	recordQueryCounter.WithLabelValues("recurse", recordType).Inc()
 	return answer
 

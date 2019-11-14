@@ -161,9 +161,9 @@ func domainChannelHandler(channel <-chan Domain, domSlice DomainMap) {
 	for {
 		select {
 		case msg := <-channel:
-			logger("cache").Info(fmt.Sprintf("Adding domain %s to cache", msg.Name))
+			logger("cache").Debug(fmt.Sprintf("Adding domain %s to cache", msg.Name))
 			domSlice.AddDomain(msg)
-			logger("cache").Info(fmt.Sprintf("Added domain %s to cache", msg.Name))
+			logger("cache").Debug(fmt.Sprintf("Added domain %s to cache", msg.Name))
 		}
 	}
 }
@@ -177,6 +177,7 @@ func startListening(protocol string, port int) {
 }
 
 func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
+	timeStart := time.Now()
 	msg := dns.Msg{}
 	msg.SetReply(r)
 	domain := msg.Question[0].Name
@@ -228,7 +229,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 
-	logger("dns").Info(fmt.Sprintf("Query received: %s", msg.Question[0].Name))
+	logger("dns").Debug(fmt.Sprintf("Query received: %s", msg.Question[0].Name))
 
 	var realDomain Domain
 	copyDomains := domains.GetDomains()
@@ -323,6 +324,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			recordQueryCounter.WithLabelValues("recurse", "A").Inc()
 		}
 	} else {
+		
 		// Domain matches, we should continue to search
 		var device Record
 		copyRecords := records.GetRecords()
@@ -358,5 +360,12 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 		}
 		recordQueryCounter.WithLabelValues("uberdns", "A").Inc()
 	}
+	// Cached dns record
 	w.WriteMsg(&msg)
+	
+	timeStop := time.Now()
+	log.WithFields(log.Fields{
+		"service": "dns",
+		"query_time": timeStop.Sub(timeStart).Seconds(),
+	}).Info(fmt.Sprintf("Query: %s", domain))
 }
