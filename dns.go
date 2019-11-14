@@ -283,7 +283,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 					}
 				}
 				w.WriteMsg(&msg)
-				recordQueryCounter.WithLabelValues("recurse", "A").Inc()
+				recordQueryCounter.WithLabelValues("recurse", dns.TypeToString[r.Question[0].Qtype]).Inc()
 
 			} else {
 				logger("recurse_dns").Debug("Returning cached recursive record")
@@ -297,7 +297,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			if err != nil {
 				log.Fatal(err)
 			}
-			recordQueryCounter.WithLabelValues("recurse", "A").Inc()
+			recordQueryCounter.WithLabelValues("recurse", dns.TypeToString[r.Question[0].Qtype]).Inc()
 		}
 	} else {
 
@@ -334,7 +334,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				A:   net.ParseIP(device.IP),
 			})
 		}
-		recordQueryCounter.WithLabelValues("uberdns", "A").Inc()
+		recordQueryCounter.WithLabelValues("uberdns", dns.TypeToString[r.Question[0].Qtype]).Inc()
 	}
 	// Cached dns record
 	w.WriteMsg(&msg)
