@@ -4,13 +4,13 @@
 package main
 
 import (
-	"strings"
 	"database/sql"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -86,6 +86,14 @@ var recordQueryCounter = prometheus.NewCounterVec(
 	},
 )
 
+func loadConfig(configFile string) (*ini.File, error) {
+	cfg, err := ini.Load(configFile)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
 func main() {
 	var (
 		recordCacheDepthCounter = prometheus.NewGaugeVec(
@@ -120,7 +128,7 @@ func main() {
 	cfgFile := flag.String("config", "config.ini", "Path to the config file")
 	flag.Parse()
 
-	cfg, err := ini.Load(*cfgFile)
+	cfg, err := loadConfig(*cfgFile)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -154,7 +162,7 @@ func main() {
 		log.SetOutput(logFile)
 	}
 
-	if DEBUG { 
+	if DEBUG {
 		log.SetLevel(log.DebugLevel)
 	}
 
@@ -226,8 +234,15 @@ func main() {
 	go startListening("udp", 53)
 
 	sig := make(chan os.Signal)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	s := <-sig
-	log.Fatalf("Signal (%v) received, stopping\n", s)
+	switch s {
+	case syscall.SIGHUP:
+		fmt.Println("SIGHUP called")
+	case syscall.SIGINT, syscall.SIGTERM:
+		log.Fatalf("Signal (%v) received, stopping\n", s)
+	default:
+		fmt.Printf("Signal %v received", s.String())
+	}
 
 }
