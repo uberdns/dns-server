@@ -158,9 +158,8 @@ func main() {
 	log.SetFormatter(&log.JSONFormatter{})
 	if err != nil {
 		log.Fatal(err)
-	} else {
-		log.SetOutput(logFile)
 	}
+	log.SetOutput(logFile)
 
 	if DEBUG {
 		log.SetLevel(log.DebugLevel)
@@ -233,21 +232,32 @@ func main() {
 	go startListening("tcp", 53)
 	go startListening("udp", 53)
 
-	sig := make(chan os.Signal)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	s := <-sig
-	switch s {
-	case syscall.SIGHUP:
-		fmt.Println("SIGHUP called, rotating logs")
+	for {
+		sig := make(chan os.Signal)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+		s := <-sig
+		switch s {
+		case syscall.SIGHUP:
+			fmt.Println("SIGHUP called, rotating logs")
+			log.Info("SIGHUP signal received, rotating logs")
+	
+			if err := logFile.Close(); err != nil {
+				fmt.Println(err.Error())
+			}
 
-		if err := logFile.Close(); err != nil {
-			log.Fatal(err)
+			// reinitialize log handler 
+			logFile, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+			if err != nil { 
+				log.Fatal(err)
+			}
+			log.SetOutput(logFile)
+		case syscall.SIGINT, syscall.SIGTERM:
+			log.Fatalf("Signal (%v) received, stopping\n", s)
+		default:
+			fmt.Printf("Signal %v received", s.String())
 		}
-		logFile, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	case syscall.SIGINT, syscall.SIGTERM:
-		log.Fatalf("Signal (%v) received, stopping\n", s)
-	default:
-		fmt.Printf("Signal %v received", s.String())
 	}
+
+
 
 }
