@@ -11,5 +11,5 @@ require (
 	golang.org/x/lint v0.0.0-20190930215403-16217165b5de // indirect
 	golang.org/x/tools v0.0.0-20191018000036-341939e08647 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
-	gopkg.in/ini.v1 v1.49.0
+	gopkg.in/ini.v1 v1.51.0
 )
