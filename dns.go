@@ -34,17 +34,14 @@ func (d *DomainMap) GetDomainByID(id int) Domain {
 }
 
 func (d *DomainMap) GetDomainByName(name string) Domain {
-	var domains = make(map[int]Domain)
 	d.mu.Lock()
-	domains = d.Domains
-	d.mu.Unlock()
-
-	for i := range domains {
-		if domains[i].Name == name {
-			return domains[i]
+	for i := range d.Domains {
+		if d.Domains[i].Name == name {
+			d.mu.Unlock()
+			return d.Domains[i]
 		}
 	}
-
+	d.mu.Unlock()
 	return Domain{}
 }
 

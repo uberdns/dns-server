@@ -240,14 +240,14 @@ func main() {
 		case syscall.SIGHUP:
 			fmt.Println("SIGHUP called, rotating logs")
 			log.Info("SIGHUP signal received, rotating logs")
-	
+
 			if err := logFile.Close(); err != nil {
 				fmt.Println(err.Error())
 			}
 
-			// reinitialize log handler 
+			// reinitialize log handler
 			logFile, err = os.OpenFile(logFilename, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-			if err != nil { 
+			if err != nil {
 				log.Fatal(err)
 			}
 			log.SetOutput(logFile)
@@ -257,7 +257,5 @@ func main() {
 			fmt.Printf("Signal %v received", s.String())
 		}
 	}
-
-
 
 }
