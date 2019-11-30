@@ -51,6 +51,7 @@ func recurseResolve(fqdn string, recordType uint16) []dns.RR {
 		"query_type": dns.TypeToString[recordType],
 	}).Info(fmt.Sprintf("Query: %s", fqdn))
 	recordQueryCounter.WithLabelValues("recurse", dns.TypeToString[recordType]).Inc()
+	//fmt.Println(answer)
 	return answer
 
 	//	c := new(dns.Client)
