@@ -176,6 +176,15 @@ func startListening(protocol string, port int) {
 func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	timeStart := time.Now()
 	msg := dns.Msg{}
+	msg.MsgHdr = dns.MsgHdr{
+		Id:                 r.Id,
+		Opcode:             dns.OpcodeQuery,
+		Authoritative:      false,
+		RecursionDesired:   true,
+		RecursionAvailable: true,
+		Response:           true,
+	}
+	msg.SetEdns0(1024, true)
 	msg.SetReply(r)
 	domain := msg.Question[0].Name
 	msg.Authoritative = true
