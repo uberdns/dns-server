@@ -177,6 +177,15 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 	timeStart := time.Now()
 	msg := dns.Msg{}
 	msg.SetReply(r)
+	msg.MsgHdr = dns.MsgHdr{
+		Id:                 r.Id,
+		Opcode:             dns.OpcodeQuery,
+		Authoritative:      false,
+		RecursionDesired:   true,
+		RecursionAvailable: true,
+		Response:           true,
+	}
+	msg.SetEdns0(1024, true)
 	domain := msg.Question[0].Name
 	msg.Authoritative = true
 
@@ -235,16 +244,49 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				// if its an A record, we should cache it!
 				switch rr[i].Header().Rrtype {
 				case dns.TypeA:
+					var recurseFQDN = strings.TrimRight(rr[i].Header().Name, ".")
+					var recurseNamelist = strings.Split(recurseFQDN, ".")
+					var recurseDomain = strings.Join(recurseNamelist[len(recurseNamelist)-2:len(recurseNamelist)], ".")
+
+					var recurseDomObj = Domain{
+						ID:   int64(recursiveDomains.Count()),
+						Name: recurseDomain,
+					}
+					if recurseDomain != topLevelDomain {
+						recurseDomObj.Name = recurseDomain
+						if recursiveDomains.Contains(recurseDomObj) {
+							recurseDomObj = recursiveDomains.GetDomainByName(recurseDomain)
+						} else {
+							recurseDomObj = Domain{
+								ID:   int64(recursiveDomains.Count()),
+								Name: recurseDomain,
+							}
+							logger("recurse_dns").Debug("Adding recursive domain to local cache")
+							addDomainToCache(recurseDomObj, recursiveDomains, recursiveDomainChannel)
+						}
+					} else {
+						recurseDomObj = domObj
+					}
+
+					var recurseName string
+
+					if len(recurseNamelist) > 2 {
+						recurseName = strings.Join(recurseNamelist[:len(recurseNamelist)-2], ".")
+					} else if len(recurseNamelist) < 2 {
+						logger("recurse_dns").Errorf("Invalid record name: %s", recurseDomain)
+					}
 					rrr := Record{
-						Name:     subdomain,
+						Name:     recurseName,
 						IP:       rr[i].(*dns.A).A.String(),
 						TTL:      int64(rr[i].(*dns.A).Hdr.Ttl),
 						Created:  time.Now(),
 						DOB:      time.Now(),
-						DomainID: domObj.ID,
+						DomainID: recurseDomObj.ID,
 					}
 
 					rrr.ID = recursiveRecords.Count()
+
+					//fmt.Println(rrr)
 
 					recursiveRecords.mu.Lock()
 					copyr := recursiveRecords
@@ -255,6 +297,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 			}
 			w.WriteMsg(&msg)
 		} else {
+
 			logger("recurse_dns").Debug("Recurse domain found in cache")
 			var device = recursiveRecords.GetRecordByName(subdomain, recurseDomain.ID)
 
@@ -264,6 +307,22 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 				logger("recurse_dns").Debug("Recurse record not found in cache, performing lookup")
 
 				for i := range rr {
+					var recurseFQDN = strings.TrimRight(rr[i].Header().Name, ".")
+					var recurseNamelist = strings.Split(recurseFQDN, ".")
+					var recurseDomainName = strings.Join(recurseNamelist[len(recurseNamelist)-2:len(recurseNamelist)], ".")
+					var recurseDomObj Domain
+					if recurseDomainName != recurseDomain.Name {
+						recurseDomObj.Name = recurseDomainName
+						if recursiveDomains.Contains(recurseDomObj) {
+							recurseDomObj = recursiveDomains.GetDomainByName(recurseDomainName)
+						} else {
+							recurseDomObj.ID = int64(recursiveDomains.Count())
+							logger("recurse_dns").Debug("Adding recursive domain to local cache")
+							addDomainToCache(recurseDomObj, recursiveDomains, recursiveDomainChannel)
+						}
+					} else {
+						recurseDomObj = recurseDomain
+					}
 					msg.Answer = append(msg.Answer, rr[i])
 					switch rr[i].Header().Rrtype {
 					case dns.TypeA:
@@ -274,7 +333,7 @@ func (fuck *handler) ServeDNS(w dns.ResponseWriter, r *dns.Msg) {
 							IP:       rr[i].(*dns.A).A.String(),
 							Created:  time.Now(),
 							DOB:      time.Now(),
-							DomainID: recurseDomain.ID,
+							DomainID: recurseDomObj.ID,
 						}
 						go addRecordToCache(rrr, recursiveRecords, recursiveCacheChannel, recursiveCachePurgeChannel)
 					}
