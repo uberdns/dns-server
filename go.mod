@@ -7,7 +7,7 @@ require (
 	github.com/go-sql-driver/mysql v1.4.1
 	github.com/miekg/dns v1.1.22
 	github.com/prometheus/client_golang v1.2.1
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.8.0
 	golang.org/x/lint v0.0.0-20190930215403-16217165b5de // indirect
 	golang.org/x/tools v0.0.0-20191018000036-341939e08647 // indirect
 	google.golang.org/appengine v1.6.5 // indirect
