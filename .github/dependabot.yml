@@ -1,0 +1,26 @@
+version: 2
+updates:
+- package-ecosystem: gomod
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: github.com/miekg/dns
+    versions:
+    - 1.1.35
+    - 1.1.37
+    - 1.1.38
+    - 1.1.39
+    - 1.1.40
+  - dependency-name: github.com/sirupsen/logrus
+    versions:
+    - 1.7.0
+    - 1.7.1
+    - 1.8.0
+  - dependency-name: github.com/prometheus/client_golang
+    versions:
+    - 1.9.0
+  - dependency-name: github.com/go-sql-driver/mysql
+    versions:
+    - 1.5.0
